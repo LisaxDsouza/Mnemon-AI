@@ -75,6 +75,28 @@ interface SessionItem {
   }>;
 }
 
+interface ThreadItem {
+  id: string;
+  title: string;
+  summary: string;
+  status: string;
+  created_at: string;
+  sessions: Array<{
+    id: string;
+    title: string;
+    intent: string;
+    summary: string;
+    started_at: string;
+    ended_at: string;
+    memories: Array<{
+      id: string;
+      title: string;
+      url: string;
+      created_at: string;
+    }>;
+  }>;
+}
+
 interface AgentLog {
   agent: string;
   action: string;
@@ -104,6 +126,7 @@ export default function Dashboard() {
   // Dashboard Data States
   const [timeline, setTimeline] = useState<MemoryEvent[]>([]);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [blockedDomains, setBlockedDomains] = useState<Array<{id: string, domain: string, wildcard: boolean}>>([]);
   const [categories, setCategories] = useState<Record<string, boolean>>({
     articles: true, youtube: true, github: true, pdf: true, social_media: false, ai_chats: false
@@ -120,21 +143,8 @@ export default function Dashboard() {
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Extension Simulator Widget State
-  const [simUrl, setSimUrl] = useState("https://react.dev/reference/react/hooks");
-  const [simTitle, setSimTitle] = useState("React Hooks Reference – React");
-  const [simTabId, setSimTabId] = useState<number>(404);
-  const [simStatus, setSimStatus] = useState<string>("idle");
-  const [simDuration, setSimDuration] = useState<number>(0);
-  const [simScroll, setSimScroll] = useState<number>(0);
-  const [simLogs, setSimLogs] = useState<string[]>([]);
-  const [simEventId, setSimEventId] = useState<string | null>(null);
-
   // UI Expanded Sessions list
   const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
-
-  // Refs for auto-timers
-  const simTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Force default-user for local testing and extension alignment
@@ -180,6 +190,16 @@ export default function Dashboard() {
       const sessionsRes = await fetch(`${BACKEND_URL}/sessions?user_id=${userId}`);
       if (sessionsRes.ok) {
         setSessions(await sessionsRes.json());
+      }
+
+      // 2.5 Fetch Threads
+      try {
+        const threadsRes = await fetch(`${BACKEND_URL}/threads?user_id=${userId}`);
+        if (threadsRes.ok) {
+          setThreads(await threadsRes.json());
+        }
+      } catch (err) {
+        console.error("Threads fetch failed", err);
       }
 
       // 3. Fetch runtime configuration (privacy settings)
@@ -420,91 +440,7 @@ export default function Dashboard() {
     }
   };
 
-  // --- Extension Simulator Actions ---
 
-  const handleSimTabLoad = async () => {
-    setSimStatus("loading");
-    setSimLogs([`[0.0s] Triggering URL load: ${simUrl}`]);
-    setSimDuration(0);
-    setSimScroll(0);
-    setSimEventId(null);
-    if (simTimerRef.current) clearInterval(simTimerRef.current);
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/capture`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url: simUrl,
-          title: simTitle,
-          tab_id: simTabId,
-          user_id: userId
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === "accepted" && data.event_id) {
-          setSimEventId(data.event_id);
-          setSimStatus("active");
-          setSimLogs(prev => [...prev, `[0.5s] Capture Accepted! Logged ID: ${data.event_id}`, `[0.6s] Tracking engagement metrics (timer active)`]);
-          
-          // Start Simulator Timer
-          let timeCount = 0;
-          simTimerRef.current = setInterval(() => {
-            timeCount += 5;
-            setSimDuration(timeCount);
-          }, 1000);
-        } else {
-          setSimStatus("rejected");
-          setSimLogs(prev => [...prev, `[0.5s] Capture Rejected: ${data.reason || data.status}`]);
-        }
-      } else {
-        setSimStatus("error");
-        setSimLogs(prev => [...prev, `[0.5s] Capture API call returned error status.`]);
-      }
-    } catch (err) {
-      setSimStatus("error");
-      setSimLogs(prev => [...prev, `[0.5s] Network error contacting capture API.`]);
-    }
-  };
-
-  const handleSimUpdateEngagement = async (addedDuration: number, finalScroll: number) => {
-    if (!simEventId) return;
-    const newDur = simDuration + addedDuration;
-    setSimDuration(newDur);
-    setSimScroll(finalScroll);
-
-    setSimLogs(prev => [...prev, `[${newDur}s] Submitting metrics: duration=${newDur}s, scroll=${finalScroll}%`]);
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/engagement`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tab_id: simTabId,
-          duration: newDur,
-          scroll_depth: finalScroll,
-          user_id: userId
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setSimLogs(prev => [...prev, `[${newDur}s] Backend Response: status=${data.status}, score=${data.score}`]);
-        if (data.status === "extracting") {
-          setSimLogs(prev => [...prev, `🔥 [${newDur}s] Capture crossed thresholds! Auto-extraction triggered.`]);
-          setSimStatus("extracted");
-          if (simTimerRef.current) clearInterval(simTimerRef.current);
-          
-          // Refresh timeline automatically
-          setTimeout(fetchDashboardData, 4000);
-        }
-      }
-    } catch (err) {
-      setSimLogs(prev => [...prev, `[error] Failed to update engagement`]);
-    }
-  };
 
   // Helper source icons
   const getSourceIcon = (type: string) => {
@@ -714,9 +650,8 @@ export default function Dashboard() {
             
             {[
               { id: "timeline", label: "Memory Log", icon: Activity },
-              { id: "sessions", label: "Browsing Sessions", icon: Compass },
+              { id: "threads", label: "Research Threads", icon: Database },
               { id: "chat", label: "Agentic Search", icon: MessageSquare },
-              { id: "simulator", label: "Extension Simulator", icon: Monitor },
               { id: "privacy", label: "Privacy Governance", icon: Settings }
             ].map(tab => {
               const Icon = tab.icon;
@@ -896,102 +831,89 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* TAB 2: SESSIONS */}
-          {activeTab === "sessions" && (
+          {/* TAB 2.5: THREADS */}
+          {activeTab === "threads" && (
             <div className="space-y-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    Browsing Sessions
-                  </h2>
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Semantic workflows grouped chronologically.
-                  </p>
-                </div>
-                <button
-                  onClick={handleTriggerClustering}
-                  className="bg-gradient-to-r from-cyan-400 to-violet-500 text-black font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all active:scale-[0.98]"
-                >
-                  <Sparkles className="w-4 h-4 text-black" />
-                  Run Clustering Agent
-                </button>
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  Research Threads
+                </h2>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Long-term learning and research flows dynamically consolidated across days.
+                </p>
               </div>
 
-              {sessions.length === 0 ? (
+              {threads.length === 0 ? (
                 <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-12 text-center text-zinc-400">
-                  <Compass className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                  <p className="font-medium text-white mb-2">No Active Clustered Sessions</p>
-                  <p className="text-xs text-zinc-500 max-w-sm mx-auto mb-4">
-                    Clustering requires at least 2 browsing events within a 30-minute window. Gather memories, then click "Run Clustering Agent".
+                  <Database className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+                  <p className="font-medium text-white mb-2">No Research Threads Active</p>
+                  <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                    Start capturing events and updating them into sessions. Threads will automatically cluster based on similar research goals.
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
-                  {sessions.map((session) => {
-                    const isExpanded = expandedSessions[session.id] || false;
-                    return (
-                      <div key={session.id} className="bg-[#121214] border border-zinc-850 rounded-xl overflow-hidden">
-                        <div 
-                          onClick={() => setExpandedSessions(prev => ({ ...prev, [session.id]: !isExpanded }))}
-                          className="p-5 flex items-start justify-between gap-6 cursor-pointer hover:bg-zinc-900/40 select-none"
-                        >
-                          <div className="flex-1 space-y-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] bg-violet-500/10 text-violet-400 border border-violet-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                                {session.topic || "Research"}
-                              </span>
-                              <span className="text-[10px] text-zinc-500 font-semibold">
-                                {new Date(session.started_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                            <h3 className="font-bold text-white text-base">
-                              {session.title}
-                            </h3>
-                            <p className="text-xs text-zinc-400 leading-relaxed">
-                              {session.summary}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSession(session.id);
-                              }}
-                              className="text-zinc-500 hover:text-red-400 p-2 rounded-lg hover:bg-zinc-800 transition-colors"
-                              title="Delete Session & Memories"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            {isExpanded ? <ChevronDown className="w-5 h-5 text-zinc-400" /> : <ChevronRight className="w-5 h-5 text-zinc-400" />}
-                          </div>
+                  {threads.map((thread) => (
+                    <div key={thread.id} className="bg-[#121214] border border-zinc-850 rounded-xl p-6 space-y-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                            Thread Context
+                          </span>
+                          <span className="text-[10px] text-zinc-500 font-semibold">
+                            Created: {new Date(thread.created_at).toLocaleDateString()}
+                          </span>
                         </div>
-
-                        {/* Expanded details */}
-                        {isExpanded && (
-                          <div className="bg-[#0b0b0d] border-t border-zinc-850 p-5 space-y-3">
-                            <div className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 mb-2">
-                              Linked Browsing Path
-                            </div>
-                            <div className="space-y-2">
-                              {session.memories.map(m => (
-                                <div key={m.id} className="flex justify-between items-center p-3 bg-[#121214] border border-zinc-850 rounded-lg text-xs">
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    {getSourceIcon(m.source_type)}
-                                    <span className="font-semibold text-white truncate max-w-md">{m.title}</span>
-                                    <span className="text-[9px] text-zinc-500 truncate max-w-xs">({m.url})</span>
-                                  </div>
-                                  <div className="text-[10px] text-zinc-500">
-                                    {new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        <h3 className="font-bold text-white text-base">
+                          {thread.title}
+                        </h3>
+                        <p className="text-xs text-zinc-400 leading-relaxed">
+                          {thread.summary}
+                        </p>
                       </div>
-                    );
-                  })}
+
+                      <div className="border-t border-zinc-850 pt-4 space-y-3">
+                        <div className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 mb-1">
+                          Clustered Browsing Sessions ({thread.sessions?.length || 0})
+                        </div>
+                        <div className="space-y-3">
+                          {thread.sessions?.map(sess => (
+                            <div key={sess.id} className="bg-[#0b0b0d] border border-zinc-850 p-4 rounded-lg space-y-2">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <h4 className="text-xs font-bold text-white">{sess.title}</h4>
+                                  <p className="text-[11px] text-zinc-400 mt-1">{sess.summary}</p>
+                                </div>
+                                <span className="text-[9px] text-zinc-500">
+                                  {new Date(sess.started_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                </span>
+                              </div>
+                              
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                {sess.memories?.slice(0, 4).map(m => (
+                                  <a
+                                    key={m.id}
+                                    href={m.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[9px] bg-zinc-900 border border-zinc-850 hover:border-zinc-700 text-zinc-300 px-2 py-1 rounded truncate max-w-[160px] flex items-center gap-1"
+                                    title={m.title}
+                                  >
+                                    {m.title}
+                                  </a>
+                                ))}
+                                {(sess.memories?.length || 0) > 4 && (
+                                  <span className="text-[9px] text-zinc-500 py-1 px-1">
+                                    +{sess.memories.length - 4} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -1101,156 +1023,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* TAB 4: EXTENSION SIMULATOR */}
-          {activeTab === "simulator" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Simulator Input Controls */}
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    Extension Simulation Engine
-                  </h2>
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Simulate how the Chrome Extension communicates tab events and engagement parameters.
-                  </p>
-                </div>
 
-                <div className="bg-[#121214] border border-zinc-850 rounded-xl p-6 space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                      Simulated Tab URL
-                    </label>
-                    <input 
-                      type="text" 
-                      value={simUrl}
-                      onChange={e => setSimUrl(e.target.value)}
-                      className="w-full bg-[#09090b] border border-zinc-850 focus:border-cyan-400 text-sm p-3 rounded-lg outline-none text-white transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                      Simulated Tab Title
-                    </label>
-                    <input 
-                      type="text" 
-                      value={simTitle}
-                      onChange={e => setSimTitle(e.target.value)}
-                      className="w-full bg-[#09090b] border border-zinc-850 focus:border-cyan-400 text-sm p-3 rounded-lg outline-none text-white transition-colors"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                        Simulated Tab ID
-                      </label>
-                      <input 
-                        type="number" 
-                        value={simTabId}
-                        onChange={e => setSimTabId(parseInt(e.target.value))}
-                        className="w-full bg-[#09090b] border border-zinc-850 focus:border-cyan-400 text-sm p-3 rounded-lg outline-none text-white transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                        Simulator State
-                      </label>
-                      <div className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-bold text-center capitalize">
-                        {simStatus === "active" && <span className="text-emerald-400">● Active Capture</span>}
-                        {simStatus === "idle" && <span className="text-zinc-500">○ Off / Idle</span>}
-                        {simStatus === "loading" && <span className="text-amber-400 animate-pulse">● Loading...</span>}
-                        {simStatus === "extracted" && <span className="text-cyan-400">✔ Extracted</span>}
-                        {simStatus === "rejected" && <span className="text-red-400">✖ Rejected (Blocklist)</span>}
-                        {simStatus === "error" && <span className="text-red-400">✖ API Offline</span>}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      onClick={handleSimTabLoad}
-                      className="w-full bg-cyan-400 hover:bg-cyan-500 text-black font-semibold text-xs py-3 rounded-lg flex items-center justify-center gap-2 active:scale-[0.98]"
-                    >
-                      <Play className="w-4 h-4 fill-black" />
-                      Simulate Tab Navigation Load
-                    </button>
-                  </div>
-                </div>
-
-                {/* Engagement sliders */}
-                {simStatus === "active" && (
-                  <div className="bg-[#121214] border border-zinc-850 rounded-xl p-6 space-y-5">
-                    <h3 className="text-xs uppercase font-bold tracking-wider text-zinc-400">
-                      Simulate Interactive Engagement
-                    </h3>
-
-                    {/* Duration Display */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs font-semibold">
-                        <span className="text-zinc-400">Time spent active:</span>
-                        <span className="text-white">{simDuration} seconds</span>
-                      </div>
-                      <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-cyan-400 h-2 transition-all duration-300"
-                          style={{ width: `${Math.min(simDuration / 20 * 100, 100)}%` }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-zinc-500">
-                        * Threshold requires minimum **20 seconds**.
-                      </p>
-                    </div>
-
-                    {/* Scroll Depth Slider */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs font-semibold">
-                        <span className="text-zinc-400">Scroll depth:</span>
-                        <span className="text-white">{simScroll}%</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max="100" 
-                        value={simScroll}
-                        onChange={e => setSimScroll(parseInt(e.target.value))}
-                        className="w-full h-1.5 bg-zinc-900 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                      />
-                      <p className="text-[10px] text-zinc-500">
-                        * Threshold requires minimum **40% scroll depth**.
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => handleSimUpdateEngagement(5, simScroll)}
-                      className="w-full bg-zinc-800 hover:bg-zinc-750 text-white font-semibold text-xs py-2.5 rounded-lg border border-zinc-700"
-                    >
-                      Ping Engagement Signal
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Simulator Execution Output logs */}
-              <div className="bg-[#121214] border border-zinc-850 rounded-xl p-6 flex flex-col h-[500px]">
-                <h3 className="text-xs uppercase font-bold tracking-wider text-zinc-400 mb-3">
-                  Simulator Execution Output Logs
-                </h3>
-                <div className="flex-1 bg-[#09090b] border border-zinc-850 p-4 rounded-lg font-mono text-[11px] text-zinc-400 space-y-2 overflow-y-auto">
-                  {simLogs.map((log, index) => (
-                    <div key={index} className="leading-relaxed border-b border-zinc-900/50 pb-1.5 last:border-b-0">
-                      {log}
-                    </div>
-                  ))}
-                  {simLogs.length === 0 && (
-                    <div className="text-zinc-600 italic">
-                      No logs recorded. Select a URL and start simulation above.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* TAB 5: PRIVACY GOVERNANCE */}
           {activeTab === "privacy" && (

@@ -17,8 +17,6 @@ import models
 from vector_store import VectorStoreManager
 from parsers import get_parser_for_url
 from agents import AgenticRetrievalSystem
-from clustering import SessionClusterer
-
 # Initialize DB on start
 init_db()
 
@@ -53,7 +51,6 @@ async def global_exception_handler(request, exc: Exception):
 # Initialize Managers
 vector_store = VectorStoreManager()
 agent_system = AgenticRetrievalSystem(vector_store)
-clusterer = SessionClusterer()
 
 # Default Pause State (in-memory pause tracking)
 PAUSE_REGISTRY: Dict[str, datetime.datetime] = {}
@@ -260,6 +257,14 @@ def execute_deep_extraction(event_id: str, user_id: str, url: str):
         event.content_preview = " ".join(full_text_list)[:300] + "..."
         db.commit()
         print(f"Ingestion: Indexed memory {event_id} ({url}) - {len(all_chunks)} chunks.")
+        
+        # Trigger dynamic sessionization in background
+        try:
+            from session_service import SessionService
+            SessionService.sessionize_events(db, user_id, vector_store)
+        except Exception as se:
+            print(f"Ingestion: Auto-sessionization failed: {se}")
+            
     except Exception as e:
         print(f"Ingestion: Extraction failed: {e}")
         try:
@@ -320,8 +325,12 @@ async def capture(request: CaptureRequest, background_tasks: BackgroundTasks, db
         
     source_type = get_source_category(request.url)
     
-    existing = db.query(models.MemoryEvent).filter_by(
-        user_id=user_id, url=request.url, status="pending"
+    # Check for any existing event for this URL created in the last 15 minutes (900 seconds)
+    time_limit = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+    existing = db.query(models.MemoryEvent).filter(
+        models.MemoryEvent.user_id == user_id,
+        models.MemoryEvent.url == request.url,
+        models.MemoryEvent.created_at >= time_limit
     ).order_by(models.MemoryEvent.created_at.desc()).first()
     
     if existing:
@@ -371,6 +380,13 @@ async def capture(request: CaptureRequest, background_tasks: BackgroundTasks, db
         event.status = "extracted"
         event.content_preview = f"Search Query: {search_query}"
         db.commit()
+        
+        # Trigger dynamic sessionization instantly for search queries
+        try:
+            from session_service import SessionService
+            SessionService.sessionize_events(db, user_id, vector_store)
+        except Exception as se:
+            print(f"Capture: Auto-sessionization failed: {se}")
     else:
         # Enqueue deep extraction immediately
         background_tasks.add_task(execute_deep_extraction, event.id, user_id, request.url)

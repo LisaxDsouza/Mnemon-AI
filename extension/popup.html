@@ -204,10 +204,12 @@
 
   <div class="card">
     <div class="card-title">Pause Recording</div>
-    <div class="pause-options">
-      <button id="pause10Btn" class="btn btn-secondary">10 Mins</button>
+    <div class="pause-options" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 8px;">
+      <button id="pause10Btn" class="btn btn-secondary">10 Min</button>
+      <button id="pause30Btn" class="btn btn-secondary">30 Min</button>
       <button id="pause60Btn" class="btn btn-secondary">1 Hour</button>
     </div>
+    <button id="unpauseBtn" class="btn btn-secondary" style="display: none; border-color: rgba(46, 204, 113, 0.4); color: var(--success); background-color: rgba(46, 204, 113, 0.05);">Resume Recording</button>
   </div>
 
   <button id="dashboardBtn" class="btn">

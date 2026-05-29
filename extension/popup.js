@@ -31,7 +31,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 2. Setup button listeners
   document.getElementById("blockToggleBtn").addEventListener("click", toggleDomainBlock);
   document.getElementById("pause10Btn").addEventListener("click", () => pauseCapture(10));
+  document.getElementById("pause30Btn").addEventListener("click", () => pauseCapture(30));
   document.getElementById("pause60Btn").addEventListener("click", () => pauseCapture(60));
+  document.getElementById("unpauseBtn").addEventListener("click", () => pauseCapture(0));
   document.getElementById("dashboardBtn").addEventListener("click", () => {
     chrome.tabs.create({ url: "http://localhost:3000" });
   });
@@ -60,7 +62,11 @@ async function updatePopupState() {
       if (!config.capture_enabled) {
         setStatus("Paused", "status-paused");
         document.getElementById("blockToggleBtn").disabled = true;
+        document.getElementById("unpauseBtn").style.display = "block";
         return;
+      } else {
+        document.getElementById("blockToggleBtn").disabled = false;
+        document.getElementById("unpauseBtn").style.display = "none";
       }
       
       // Fetch user's custom blocked list to match active domain ID

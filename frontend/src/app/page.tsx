@@ -830,24 +830,50 @@ export default function Dashboard() {
 
                             {/* State indicator */}
                             <span className={`text-[10px] px-2.5 py-0.5 rounded-md font-bold ${
-                              event.event_type === "extract"
+                              event.status === "extracted"
                                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : event.status === "failed"
+                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                : event.status === "ignored"
+                                ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
                                 : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                             }`}>
-                              {event.event_type === "extract" ? "Extracted" : "Captured"}
+                              {event.status === "extracted" 
+                                ? "Extracted" 
+                                : event.status === "failed" 
+                                ? "Failed" 
+                                : event.status === "ignored" 
+                                ? "Ignored" 
+                                : "Captured"}
                             </span>
                           </div>
                         </div>
 
                         {/* Content preview */}
-                        {event.content_preview ? (
+                        {event.status === "extracted" && event.content_preview ? (
                           <div className="mt-3 bg-[#09090b] border border-zinc-850 p-3 rounded-md text-xs text-zinc-400 leading-relaxed">
                             {event.content_preview}
+                          </div>
+                        ) : event.status === "failed" ? (
+                          <div className="mt-3 flex items-center justify-between bg-rose-950/10 border border-dashed border-rose-900/30 p-3 rounded-md">
+                            <span className="text-xs text-rose-400/80 italic">
+                              Extraction failed: The website content could not be parsed.
+                            </span>
+                            <button
+                              onClick={() => handleForceExtract(event.id)}
+                              className="text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded-md border border-zinc-700"
+                            >
+                              Retry Extract
+                            </button>
+                          </div>
+                        ) : event.status === "ignored" ? (
+                          <div className="mt-3 bg-zinc-950/40 border border-dashed border-zinc-800 p-3 rounded-md text-xs text-zinc-500 italic">
+                            Ignored: This website or domain was skipped.
                           </div>
                         ) : (
                           <div className="mt-3 flex items-center justify-between bg-[#09090b]/50 border border-dashed border-zinc-800 p-3 rounded-md">
                             <span className="text-xs text-zinc-500 italic">
-                              Initial metadata captured. Below auto-extraction thresholds.
+                              Initial metadata captured. Awaiting manual deep extraction approval.
                             </span>
                             <button
                               onClick={() => handleForceExtract(event.id)}

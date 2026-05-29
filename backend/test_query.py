@@ -22,7 +22,7 @@ def run_db_query(query_text: str):
         # Fetch allowed event IDs matching extracted articles/webpages
         allowed_events = db.query(models.MemoryEvent).filter(
             models.MemoryEvent.user_id == user_id,
-            models.MemoryEvent.event_type == "extract"
+            models.MemoryEvent.status == "extracted"
         ).all()
         allowed_ids = [e.id for e in allowed_events]
         print(f"Total extracted documents in DB: {len(allowed_ids)}")

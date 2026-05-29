@@ -328,6 +328,10 @@ async def capture(request: CaptureRequest, background_tasks: BackgroundTasks, db
         return {"status": "accepted", "event_id": existing.id, "message": "Resumed existing candidate."}
         
     from event_service import EventService
+    
+    # 1. Parse search query terms if it's a search URL
+    search_query = EventService.extract_search_query(request.url)
+    
     event = EventService.create_event(
         db=db,
         user_id=user_id,
@@ -337,8 +341,39 @@ async def capture(request: CaptureRequest, background_tasks: BackgroundTasks, db
         metadata_json={"tab_id": request.tab_id}
     )
     
-    # Enqueue deep extraction immediately
-    background_tasks.add_task(execute_deep_extraction, event.id, user_id, request.url)
+    if event.event_type == "SEARCH" and search_query:
+        # Override title to use search query term
+        event.title = f"Search: {search_query}"
+        
+        # 2. Topic Clustering Assignment
+        cluster = EventService.assign_topic_cluster(db, user_id, search_query, vector_store)
+        event.metadata_json = {
+            **event.metadata_json,
+            "search_query": search_query,
+            "topic_cluster_id": cluster.id if cluster else None,
+            "topic_name": cluster.topic_name if cluster else None
+        }
+        
+        # 3. Save directly to vector store (skips re-scraping Google DOM)
+        vector_store.add_documents(
+            [f"User executed a search query: '{search_query}'"],
+            [{
+                "memory_event_id": event.id,
+                "user_id": user_id,
+                "url": request.url,
+                "title": event.title,
+                "source_type": "search",
+                "location": "Search Engine"
+            }]
+        )
+        
+        # 4. Mark status as completed
+        event.status = "extracted"
+        event.content_preview = f"Search Query: {search_query}"
+        db.commit()
+    else:
+        # Enqueue deep extraction immediately
+        background_tasks.add_task(execute_deep_extraction, event.id, user_id, request.url)
     
     return {"status": "accepted", "event_id": event.id}
 
@@ -348,8 +383,7 @@ async def engagement(request: EngagementRequest, background_tasks: BackgroundTas
     user_id = user.id if request.user_id == "default-user" else request.user_id
     
     event = db.query(models.MemoryEvent).filter(
-        models.MemoryEvent.user_id == user_id,
-        models.MemoryEvent.event_type == "capture"
+        models.MemoryEvent.user_id == user_id
     ).filter(models.MemoryEvent.metadata_json["tab_id"].as_integer() == request.tab_id).order_by(
         models.MemoryEvent.created_at.desc()
     ).first()
@@ -357,19 +391,30 @@ async def engagement(request: EngagementRequest, background_tasks: BackgroundTas
     if not event:
         return {"status": "not_found", "message": "No active capture candidate exists for this tab."}
         
+    meta = event.metadata_json or {}
+    revisits = meta.get("revisits", 0)
+    
+    # Increment revisits if user has loaded a page again in same tab
+    if request.duration < event.duration_seconds:
+        revisits += 1
+        
     event.duration_seconds = max(event.duration_seconds, request.duration)
     event.scroll_depth = max(event.scroll_depth, request.scroll_depth)
     
-    duration_weight = min(event.duration_seconds / 60.0, 1.0) * 0.5
-    scroll_weight = (event.scroll_depth / 100.0) * 0.5
-    event.engagement_score = round(duration_weight + scroll_weight, 2)
+    # Save revisits
+    event.metadata_json = {
+        **meta,
+        "revisits": revisits
+    }
+    
+    from event_service import EventService
+    event.engagement_score = EventService.calculate_engagement(
+        event.duration_seconds,
+        event.scroll_depth,
+        revisits
+    )
     
     db.commit()
-    
-    if event.duration_seconds >= 20 and event.scroll_depth >= 40:
-        background_tasks.add_task(execute_deep_extraction, event.id, user_id, event.url)
-        return {"status": "extracting", "event_id": event.id, "score": event.engagement_score}
-        
     return {"status": "tracking", "event_id": event.id, "score": event.engagement_score}
 
 @app.post("/extract")
@@ -398,6 +443,7 @@ async def get_timeline(user_id: str = "default-user", db: Session = Depends(get_
             "title": m.title,
             "source_type": m.source_type,
             "event_type": m.event_type,
+            "status": m.status,
             "duration": m.duration_seconds,
             "scroll_depth": m.scroll_depth,
             "engagement_score": m.engagement_score,
@@ -407,6 +453,8 @@ async def get_timeline(user_id: str = "default-user", db: Session = Depends(get_
     return output
 
 # --- Session Clustering Routes ---
+
+from session_service import SessionService
 
 @app.get("/sessions")
 async def get_sessions(user_id: str = "default-user", db: Session = Depends(get_db)):
@@ -432,10 +480,11 @@ async def get_sessions(user_id: str = "default-user", db: Session = Depends(get_
         output.append({
             "id": s.id,
             "title": s.title,
-            "topic": s.topic,
             "summary": s.summary,
+            "intent": s.intent,
             "started_at": s.started_at.isoformat(),
             "ended_at": s.ended_at.isoformat(),
+            "thread_id": s.thread_id,
             "memories": mem_list
         })
     return output
@@ -446,8 +495,52 @@ async def trigger_clustering(user_id: str = "default-user", db: Session = Depend
     user = get_or_create_default_user(db)
     uid = user.id if user_id == "default-user" else user_id
     
-    created = clusterer.run_clustering(db, uid)
+    created = SessionService.sessionize_events(db, uid, vector_store)
     return {"status": "success", "sessions_created": created}
+
+@app.get("/threads")
+async def get_threads(user_id: str = "default-user", db: Session = Depends(get_db)):
+    """Retrieves all learning/research threads for the user with nested sessions."""
+    user = get_or_create_default_user(db)
+    uid = user.id if user_id == "default-user" else user_id
+    
+    threads = db.query(models.Thread).filter_by(user_id=uid).order_by(
+        models.Thread.created_at.desc()
+    ).all()
+    
+    output = []
+    for t in threads:
+        linked_sessions = db.query(models.Session).filter_by(thread_id=t.id).all()
+        sess_list = []
+        for s in linked_sessions:
+            linked_memories = db.query(models.MemoryEvent).filter_by(session_id=s.id).all()
+            mem_list = [{
+                "id": m.id,
+                "title": m.title,
+                "url": m.url,
+                "created_at": m.created_at.isoformat()
+            } for m in linked_memories]
+            
+            sess_list.append({
+                "id": s.id,
+                "title": s.title,
+                "intent": s.intent,
+                "summary": s.summary,
+                "started_at": s.started_at.isoformat(),
+                "ended_at": s.ended_at.isoformat(),
+                "memories": mem_list
+            })
+            
+        output.append({
+            "id": t.id,
+            "title": t.title,
+            "summary": t.summary,
+            "status": t.status,
+            "created_at": t.created_at.isoformat(),
+            "sessions": sess_list
+        })
+    return output
+
 
 # --- Agentic Search Route ---
 

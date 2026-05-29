@@ -81,5 +81,71 @@ class TestEventService(unittest.TestCase):
         self.assertEqual(db_artifacts[0].content, "Bridge networks apply to containers running on the same daemon host.")
         self.assertEqual(db_artifacts[0].location, "Overview")
 
+    def test_extract_search_query(self):
+        """Verifies extracting queries from search engines."""
+        google_url = "https://www.google.com/search?q=docker+container+ports&oq=docker"
+        self.assertEqual(EventService.extract_search_query(google_url), "docker container ports")
+        
+        yahoo_url = "https://search.yahoo.com/search?p=kubernetes+pods"
+        self.assertEqual(EventService.extract_search_query(yahoo_url), "kubernetes pods")
+        
+        invalid_url = "https://example.com/item"
+        self.assertIsNone(EventService.extract_search_query(invalid_url))
+
+    def test_calculate_engagement(self):
+        """Verifies 0-100 engagement scaling calculations."""
+        # 1. Zero values
+        self.assertEqual(EventService.calculate_engagement(0, 0, 0), 0.0)
+        
+        # 2. Maximum values (120s time, 100% scroll, 2 revisits)
+        self.assertEqual(EventService.calculate_engagement(120, 100, 2), 100.0)
+        
+        # 3. Overshoot values (should cap at 100)
+        self.assertEqual(EventService.calculate_engagement(300, 150, 5), 100.0)
+        
+        # 4. Partial values (60s duration -> 20pts, 50% scroll -> 20pts, 1 revisit -> 10pts)
+        self.assertEqual(EventService.calculate_engagement(60, 50, 1), 50.0)
+
+    def test_assign_topic_cluster(self):
+        """Verifies that similar search queries map to the same cluster while distinct ones create new clusters."""
+        import numpy as np
+        
+        # Mock VectorStoreManager._get_embeddings
+        class MockVectorStore:
+            def _get_embeddings(self, texts):
+                # Simple mock mapping text similarity
+                # "docker bridge" -> [1, 0, 0]
+                # "docker setup" -> [0.8, 0.6, 0]
+                # "cooking recipes" -> [0, 0, 1]
+                t = texts[0].lower()
+                if "docker bridge" in t:
+                    vec = np.array([1.0, 0.0, 0.0], dtype='float32')
+                elif "docker setup" in t:
+                    vec = np.array([0.9, 0.1, 0.0], dtype='float32')
+                else:
+                    vec = np.array([0.0, 0.0, 1.0], dtype='float32')
+                # Pad to 384 dimensions
+                padded = np.zeros(384, dtype='float32')
+                padded[:3] = vec
+                # Normalize L2
+                padded = padded / np.linalg.norm(padded)
+                return [padded]
+
+        mock_vs = MockVectorStore()
+
+        # 1. Create first cluster for Docker Bridge
+        c1 = EventService.assign_topic_cluster(self.db, self.user.id, "docker bridge network", mock_vs)
+        self.assertIsNotNone(c1.id)
+        self.assertIn("Docker", c1.topic_name)
+
+        # 2. Create similar query, should match c1
+        c2 = EventService.assign_topic_cluster(self.db, self.user.id, "docker setup bridge config", mock_vs)
+        self.assertEqual(c1.id, c2.id)
+
+        # 3. Create unrelated query, should generate a new cluster
+        c3 = EventService.assign_topic_cluster(self.db, self.user.id, "cooking recipes for chicken pasta", mock_vs)
+        self.assertNotEqual(c1.id, c3.id)
+        self.assertIn("Cooking", c3.topic_name)
+
 if __name__ == "__main__":
     unittest.main()

@@ -237,7 +237,7 @@ Do NOT make up an answer."""
                 {"role": "user", "content": f"User query: {query}\n\nContext from browsing history:\n{context_text}"}
             ],
             temperature=0.3,
-            max_tokens=1024
+            max_tokens=512
         )
         raw_output = response.choices[0].message.content.strip()
 
@@ -343,7 +343,7 @@ class AgenticRetrievalSystem:
 
         query_filter = db.query(models.MemoryEvent).filter(
             models.MemoryEvent.user_id == user_id,
-            models.MemoryEvent.event_type == "extract"
+            models.MemoryEvent.status == "extracted"
         )
         if mapped_sources:
             query_filter = query_filter.filter(

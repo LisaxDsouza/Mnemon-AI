@@ -1,5 +1,26 @@
 # Recall AI - Semantic Memory Infrastructure
 
+<!--
+NOTE: GitHub only renders an inline, playable video for files uploaded through
+its own asset pipeline (drag-and-drop into the README/issue/PR edit box on
+github.com), which produces a `https://github.com/user-attachments/assets/...`
+link. A .mp4 committed to the repo and referenced by a relative path, like the
+<video> tag below, will NOT autoplay inline for everyone — GitHub's markdown
+sanitizer strips `src` on non-whitelisted hosts in a lot of contexts, so it
+often falls back to a plain download link instead of a player.
+
+To get the guaranteed inline player:
+  1. Open this file in the GitHub web editor (or start a new issue/PR).
+  2. Drag "Mnemon Demo.mp4" into the text box — GitHub uploads it and inserts
+     a working `user-attachments` link automatically.
+  3. Replace the <video> block below with that inserted link, then delete
+     this comment.
+-->
+
+<video src="Mnemon%20Demo.mp4" controls width="100%">
+  Demo video — view it directly: <a href="Mnemon%20Demo.mp4">Mnemon Demo.mp4</a>
+</video>
+
 Recall AI is an agentic memory infrastructure platform that captures, structures, retrieves, and reconstructs a user’s digital learning and browsing history. It acts as a semantic memory layer for the web, tracking user engagement, identifying context sessions, and enabling intelligent retrieval through agentic workflows while maintaining strict, user-controlled privacy guardrails.
 
 ---

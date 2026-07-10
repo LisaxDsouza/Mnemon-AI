@@ -4,9 +4,14 @@
 
 
 
-Recall
 
- AI is an agentic memory infrastructure platform that captures, structures, retrieves, and reconstructs a user’s digital learning and browsing history. It acts as a semantic memory layer for the web, tracking user engagement, identifying context sessions, and enabling intelligent retrieval through agentic workflows while maintaining strict, user-controlled privacy guardrails.
+https://github.com/user-attachments/assets/66c121ef-d12f-4fd6-b58d-42fa9a9d2b5f
+
+
+
+
+
+Recall AI is an agentic memory infrastructure platform that captures, structures, retrieves, and reconstructs a user’s digital learning and browsing history. It acts as a semantic memory layer for the web, tracking user engagement, identifying context sessions, and enabling intelligent retrieval through agentic workflows while maintaining strict, user-controlled privacy guardrails.
 
 ---
 

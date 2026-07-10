@@ -5,220 +5,330 @@
   <title>Recall AI</title>
   <style>
     :root {
-      --bg: #0b0c10;
-      --panel: #1f2833;
-      --primary: #c5a059; /* Custom premium accent */
-      --violet: #8a2be2;
-      --cyan: #00ffff;
-      --text: #c5c6c7;
-      --white: #ffffff;
-      --danger: #ff4d4d;
-      --success: #2ecc71;
+      --bg: #0b1016;
+      --panel: #151f29;
+      --panel-2: #0e141b;
+      --line: #20303c;
+      --line-soft: #1a2530;
+      --cyan: #5fd8e6;
+      --cyan-dim: #4a99a4;
+      --cyan-wash: rgba(95, 216, 230, 0.1);
+      --amber: #ffb646;
+      --amber-wash: rgba(255, 182, 70, 0.1);
+      --green: #5fe6a0;
+      --red: #ff6b6b;
+      --text: #e3edf1;
+      --text-dim: #84a0ad;
+      --text-faint: #516b78;
     }
 
+    * { box-sizing: border-box; }
+
     body {
-      width: 320px;
+      width: 340px;
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background-color: var(--bg);
       color: var(--text);
-      padding: 16px;
-      box-sizing: border-box;
+      background-image:
+        linear-gradient(rgba(95,216,230,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(95,216,230,0.05) 1px, transparent 1px);
+      background-size: 24px 24px;
     }
 
     .header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background-color: var(--panel);
+    }
+
+    .header-top {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      padding-bottom: 12px;
-      margin-bottom: 16px;
     }
 
-    .logo-container {
+    .brand {
       display: flex;
       align-items: center;
-      gap: 8px;
-    }
-
-    .logo-img {
-      width: 24px;
-      height: 24px;
-      border-radius: 4px;
-    }
-
-    .logo-text {
-      font-size: 18px;
+      gap: 9px;
+      font-size: 14px;
       font-weight: 700;
-      letter-spacing: 0.5px;
-      background: linear-gradient(135deg, var(--cyan), var(--violet));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-mark {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid var(--cyan);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 50%;
+      background: var(--cyan);
     }
 
     .status-badge {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
-      padding: 4px 8px;
-      border-radius: 12px;
+      padding: 4px 9px;
+      border-radius: 20px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+    }
+    .status-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .status-active { background: var(--cyan-wash); color: var(--green); }
+    .status-active .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(95,230,160,0.18); }
+    .status-paused { background: var(--amber-wash); color: var(--amber); }
+    .status-paused .dot { background: var(--amber); }
+    .status-blocked { background: rgba(255,77,77,0.1); color: var(--red); }
+    .status-blocked .dot { background: var(--red); }
+
+    .header-sub {
+      font-size: 10.5px;
+      color: var(--text-dim);
+      margin-top: 8px;
+      line-height: 1.5;
     }
 
-    .status-active {
-      background-color: rgba(46, 204, 113, 0.15);
-      color: var(--success);
-      border: 1px solid rgba(46, 204, 113, 0.3);
+    .section {
+      padding: 15px 18px;
+      border-bottom: 1px solid var(--line);
     }
 
-    .status-paused {
-      background-color: rgba(197, 160, 89, 0.15);
-      color: #f39c12;
-      border: 1px solid rgba(197, 160, 89, 0.3);
-    }
-
-    .status-blocked {
-      background-color: rgba(255, 77, 77, 0.15);
-      color: var(--danger);
-      border: 1px solid rgba(255, 77, 77, 0.3);
-    }
-
-    .card {
-      background-color: var(--panel);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .card-title {
+    .label {
       font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: rgba(255, 255, 255, 0.4);
-      margin-bottom: 8px;
       font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
     }
 
-    .page-info {
-      font-size: 13px;
-      color: var(--white);
+    .help {
+      font-size: 10.5px;
+      color: var(--text-faint);
+      margin-bottom: 11px;
+      line-height: 1.45;
+    }
+
+    .scope-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .scope-row .site {
+      font-weight: 600;
+      font-size: 12.5px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      margin-bottom: 4px;
     }
 
-    .page-domain {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.5);
-      margin-bottom: 8px;
+    .scope-row .kind {
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 9.5px;
+      color: var(--cyan);
+      background: var(--cyan-wash);
+      padding: 3px 7px;
+      border-radius: 5px;
+      flex-shrink: 0;
+    }
+
+    .toggle-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .tg-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 11px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+    }
+    .tg-item.on {
+      border-color: var(--cyan-dim);
+      color: var(--text);
+      background: var(--cyan-wash);
+    }
+
+    .sw {
+      width: 28px;
+      height: 15px;
+      border-radius: 9px;
+      border: 1px solid var(--line);
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .sw::after {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: left 0.15s, background 0.15s;
+    }
+    .tg-item.on .sw { background: rgba(95,216,230,0.2); border-color: var(--cyan); }
+    .tg-item.on .sw::after { background: var(--cyan); left: 14px; }
+
+    .dur-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .dur-btn {
+      flex: 1;
+      text-align: center;
+      padding: 8px 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      background: transparent;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .dur-btn.sel {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: var(--amber-wash);
+      font-weight: 600;
     }
 
     .btn {
       width: 100%;
-      background: linear-gradient(135deg, var(--cyan), var(--violet));
-      color: var(--white);
       border: none;
       padding: 10px;
-      border-radius: 6px;
+      border-radius: 8px;
       font-weight: 600;
       cursor: pointer;
-      font-size: 13px;
-      transition: opacity 0.2s, transform 0.1s;
+      font-size: 12.5px;
+      font-family: inherit;
+      transition: opacity 0.15s, transform 0.08s;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
     }
+    .btn:active { transform: scale(0.98); }
 
-    .btn:hover {
-      opacity: 0.9;
+    .btn-halt {
+      background: transparent;
+      border: 1px solid var(--amber);
+      color: var(--amber);
+    }
+    .btn-halt:hover { background: var(--amber-wash); }
+    .btn-halt.is-paused {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(95,230,160,0.08);
     }
 
-    .btn:active {
-      transform: scale(0.98);
+    .btn-block {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text-dim);
+      margin-top: 10px;
+    }
+    .btn-block:hover { border-color: var(--text-dim); color: var(--text); }
+    .btn-block.is-blocked {
+      border-color: var(--red);
+      color: var(--red);
+      background: rgba(255,77,77,0.06);
     }
 
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: var(--text);
+    .btn-primary {
+      background: var(--cyan);
+      color: var(--bg);
     }
+    .btn-primary:hover { background: var(--cyan-dim); }
 
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.12);
-    }
-
-    .btn-danger {
-      background: rgba(255, 77, 77, 0.1);
-      border: 1px solid rgba(255, 77, 77, 0.3);
-      color: var(--danger);
-    }
-
-    .btn-danger:hover {
-      background: rgba(255, 77, 77, 0.2);
-    }
-
-    .pause-options {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .footer-links {
+    .footer {
       display: flex;
       justify-content: space-between;
-      font-size: 11px;
-      margin-top: 16px;
+      align-items: center;
+      font-size: 10.5px;
+      padding: 13px 18px;
+      color: var(--text-dim);
     }
-
-    .footer-links a {
-      color: var(--cyan);
-      text-decoration: none;
-    }
-
-    .footer-links a:hover {
-      text-decoration: underline;
-    }
+    .footer a { color: var(--cyan); text-decoration: none; font-weight: 600; }
+    .footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="logo-container">
-      <img src="icon.png" class="logo-img" alt="logo">
-      <span class="logo-text">Recall AI</span>
+    <div class="header-top">
+      <div class="brand"><span class="brand-mark"></span> Recall</div>
+      <div id="statusBadge" class="status-badge status-active">
+        <span class="dot"></span><span id="statusText">Active</span>
+      </div>
     </div>
-    <div id="statusBadge" class="status-badge status-active">
-      <span>●</span> <span id="statusText">Active</span>
+    <div class="header-sub">Recall is watching this tab and will save it if it matches your settings below.</div>
+  </div>
+
+  <div class="section">
+    <div class="label">This page</div>
+    <div class="help">What Recall sees right now.</div>
+    <div class="scope-row">
+      <span id="pageTitle" class="site">Loading page...</span>
+      <span id="pageDomain" class="kind">…</span>
+    </div>
+    <button id="blockToggleBtn" class="btn btn-block">Block this site</button>
+  </div>
+
+  <div class="section">
+    <div class="label">What gets saved</div>
+    <div class="help">Recall only remembers pages in categories you turn on.</div>
+    <div class="toggle-grid" id="categoryGrid">
+      <div class="tg-item" data-cat="articles"><span>Articles &amp; web pages</span><span class="sw"></span></div>
+      <div class="tg-item" data-cat="youtube"><span>YouTube videos</span><span class="sw"></span></div>
+      <div class="tg-item" data-cat="github"><span>GitHub code &amp; docs</span><span class="sw"></span></div>
+      <div class="tg-item" data-cat="social_media"><span>Social &amp; chat apps</span><span class="sw"></span></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Current Tab</div>
-    <div id="pageTitle" class="page-info">Loading Page...</div>
-    <div id="pageDomain" class="page-domain">loading...</div>
-    <button id="blockToggleBtn" class="btn btn-secondary">Block Domain</button>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Pause Recording</div>
-    <div class="pause-options" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 8px;">
-      <button id="pause10Btn" class="btn btn-secondary">10 Min</button>
-      <button id="pause30Btn" class="btn btn-secondary">30 Min</button>
-      <button id="pause60Btn" class="btn btn-secondary">1 Hour</button>
+  <div class="section">
+    <div class="label">Pause capture</div>
+    <div class="help">Stop Recall from saving anything for a set time — useful for private browsing.</div>
+    <div class="dur-row">
+      <button id="pause10Btn" class="dur-btn sel" data-min="10">10 min</button>
+      <button id="pause30Btn" class="dur-btn" data-min="30">30 min</button>
+      <button id="pause60Btn" class="dur-btn" data-min="60">1 hour</button>
     </div>
-    <button id="unpauseBtn" class="btn btn-secondary" style="display: none; border-color: rgba(46, 204, 113, 0.4); color: var(--success); background-color: rgba(46, 204, 113, 0.05);">Resume Recording</button>
+    <button id="haltBtn" class="btn btn-halt">Pause capture</button>
   </div>
 
-  <button id="dashboardBtn" class="btn">
-    Open Dashboard
+  <button id="dashboardBtn" class="btn btn-primary" style="margin: 15px 18px 0; width: calc(100% - 36px);">
+    Open dashboard
   </button>
 
-  <div class="footer-links">
-    <a href="#" id="viewPrefs">Privacy Preferences</a>
-    <span style="color: rgba(255,255,255,0.2)">v1.0</span>
+  <div class="footer">
+    <span id="blockedCount">0 sites always excluded</span>
+    <a href="#" id="viewPrefs">Full privacy settings →</a>
   </div>
 
   <script src="popup.js"></script>

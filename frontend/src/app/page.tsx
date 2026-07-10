@@ -1,22 +1,22 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  Shield, 
-  Activity, 
-  Compass, 
-  Settings, 
-  MessageSquare, 
-  Sliders, 
-  Plus, 
-  Trash2, 
-  Play, 
-  Pause, 
-  ExternalLink, 
-  ChevronRight, 
-  ChevronDown, 
-  Search, 
-  Clock, 
+import {
+  Shield,
+  Activity,
+  Compass,
+  Settings,
+  MessageSquare,
+  Sliders,
+  Plus,
+  Trash2,
+  Play,
+  Pause,
+  ExternalLink,
+  ChevronRight,
+  ChevronDown,
+  Search,
+  Clock,
   Database,
   RefreshCw,
   Sparkles,
@@ -43,7 +43,6 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-
 const BACKEND_URL = "http://localhost:8000";
 
 interface MemoryEvent {
@@ -57,6 +56,7 @@ interface MemoryEvent {
   engagement_score: number;
   created_at: string;
   content_preview?: string;
+  status?: string;
 }
 
 interface SessionItem {
@@ -108,6 +108,50 @@ interface ReflectionItem {
   rationale: string;
 }
 
+// --- Control Deck design tokens & small shared primitives ---
+
+const NAV_ITEMS = [
+  { id: "timeline", label: "Memory Log", desc: "Everything captured, in order", icon: Activity },
+  { id: "threads", label: "Threads", desc: "Related visits grouped by topic", icon: Database },
+  { id: "chat", label: "Ask Recall", desc: "Search your history in plain language", icon: MessageSquare },
+  { id: "privacy", label: "Privacy", desc: "What's tracked, blocked, or paused", icon: Settings },
+];
+
+function relevanceLabel(score: number) {
+  if (score >= 0.7) return "High";
+  if (score >= 0.4) return "Medium";
+  return "Low";
+}
+
+function StatusPill({ status }: { status?: string }) {
+  if (status === "extracted") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold px-2.5 py-1 rounded-full text-[#5fe6a0] bg-[#5fe6a0]/10">
+        ✓ Processed
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold px-2.5 py-1 rounded-full text-[#ff6b6b] bg-[#ff6b6b]/10">
+        ⚠ Failed
+      </span>
+    );
+  }
+  if (status === "ignored") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold px-2.5 py-1 rounded-full text-[#84a0ad] bg-[#84a0ad]/10">
+        Ignored
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold px-2.5 py-1 rounded-full text-[#ffb646] bg-[#ffb646]/10">
+      ⏳ Waiting
+    </span>
+  );
+}
+
 export default function Dashboard() {
   // Navigation & Onboarding States
   const [userId, setUserId] = useState<string | null>(null);
@@ -151,7 +195,7 @@ export default function Dashboard() {
     localStorage.setItem("recall_user_id", "default-user");
     setUserId("default-user");
     setIsOnboarding(false);
-    
+
     // Check API Status and fetch initial data
     checkApiHealth();
   }, []);
@@ -178,7 +222,7 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     if (!userId) return;
     await checkApiHealth();
-    
+
     try {
       // 1. Fetch Timeline
       const timelineRes = await fetch(`${BACKEND_URL}/timeline?user_id=${userId}`);
@@ -440,59 +484,76 @@ export default function Dashboard() {
     }
   };
 
-
-
   // Helper source icons
   const getSourceIcon = (type: string) => {
     switch (type) {
-      case "youtube": return <Video className="w-4 h-4 text-red-500" />;
-      case "github": return <GithubIcon className="w-4 h-4 text-purple-400" />;
-      case "pdf": return <FileText className="w-4 h-4 text-blue-400" />;
-      default: return <Compass className="w-4 h-4 text-cyan-400" />;
+      case "youtube": return <Video className="w-4 h-4 text-[#5fd8e6]" />;
+      case "github": return <GithubIcon className="w-4 h-4 text-[#5fd8e6]" />;
+      case "pdf": return <FileText className="w-4 h-4 text-[#5fd8e6]" />;
+      default: return <Compass className="w-4 h-4 text-[#5fd8e6]" />;
     }
   };
+
+  const sourceLabel = (type: string) => {
+    switch (type) {
+      case "youtube": return "YouTube";
+      case "github": return "GitHub";
+      case "pdf": return "PDF";
+      case "stackoverflow": return "Stack Overflow";
+      default: return "Article";
+    }
+  };
+
+  const processedCount = timeline.filter(e => e.status === "extracted").length;
+  const waitingCount = timeline.length - processedCount;
 
   // --- RENDER ONBOARDING VIEW ---
   if (isOnboarding) {
     return (
-      <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] flex items-center justify-center p-6 relative overflow-hidden font-sans">
-        {/* Decorative background grid/glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))]" />
-        
-        <div className="w-full max-w-lg bg-[#18181b] border border-zinc-800 rounded-xl p-8 shadow-2xl relative z-10">
+      <div className="min-h-screen bg-[#0b1016] text-[#e3edf1] flex items-center justify-center p-6 relative overflow-hidden font-sans">
+        <div
+          className="absolute inset-0 opacity-40"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(103,214,229,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(103,214,229,0.05) 1px, transparent 1px)",
+            backgroundSize: "32px 32px",
+          }}
+        />
+
+        <div className="w-full max-w-lg bg-[#111820] border border-[#20303c] rounded-xl p-8 shadow-2xl relative z-10">
           <div className="flex justify-center mb-6">
-            <div className="bg-gradient-to-r from-cyan-400 to-violet-500 p-2.5 rounded-xl shadow-lg shadow-violet-500/20">
-              <Shield className="w-8 h-8 text-black" />
+            <div className="relative w-11 h-11 rounded-full border-2 border-[#5fd8e6] flex items-center justify-center">
+              <div className="w-4 h-4 rounded-full bg-[#5fd8e6]" />
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-center bg-gradient-to-r from-cyan-400 to-violet-500 bg-clip-text text-transparent mb-2">
+          <h2 className="text-2xl font-bold text-center text-[#e3edf1] mb-2">
             Welcome to Recall AI
           </h2>
-          <p className="text-zinc-400 text-sm text-center mb-8">
-            Let's configure your local agentic memory layer and default privacy exclusions.
+          <p className="text-[#84a0ad] text-sm text-center mb-8">
+            Let's set up your local memory layer and default privacy exclusions.
           </p>
 
           <form onSubmit={handleSignup} className="space-y-6">
             {/* Email Address */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#84a0ad] mb-2">
                 Identity / Email Address
               </label>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 required
                 placeholder="developer@example.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="w-full bg-[#09090b] border border-zinc-800 focus:border-cyan-400 text-sm p-3 rounded-lg outline-none transition-colors"
+                className="w-full bg-[#0e141b] border border-[#20303c] focus:border-[#5fd8e6] text-sm p-3 rounded-lg outline-none transition-colors"
               />
             </div>
 
             {/* Allowed Categories */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                Allowed Content Types
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#84a0ad] mb-2">
+                What should Recall save?
               </label>
               <div className="grid grid-cols-2 gap-3">
                 {[
@@ -501,15 +562,15 @@ export default function Dashboard() {
                   { id: "github", label: "GitHub Code" },
                   { id: "pdf", label: "PDF Documents" }
                 ].map(item => (
-                  <label 
+                  <label
                     key={item.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer select-none transition-all ${
-                      signupCategories.includes(item.id) 
-                        ? 'bg-violet-950/20 border-violet-500 text-white' 
-                        : 'bg-[#09090b] border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      signupCategories.includes(item.id)
+                        ? 'bg-[#5fd8e6]/10 border-[#5fd8e6]/60 text-white'
+                        : 'bg-[#0e141b] border-[#20303c] text-[#84a0ad] hover:border-[#2f4451]'
                     }`}
                   >
-                    <input 
+                    <input
                       type="checkbox"
                       checked={signupCategories.includes(item.id)}
                       onChange={() => {
@@ -529,24 +590,24 @@ export default function Dashboard() {
 
             {/* Default Excluded Domains */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                Domain Exclusions (Comma-separated)
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#84a0ad] mb-2">
+                Sites to never track (comma-separated)
               </label>
-              <textarea 
+              <textarea
                 rows={2}
                 value={signupBlocks}
                 onChange={e => setSignupBlocks(e.target.value)}
                 placeholder="domain.com, bank.com, auth.net"
-                className="w-full bg-[#09090b] border border-zinc-800 focus:border-cyan-400 text-sm p-3 rounded-lg outline-none transition-colors resize-none"
+                className="w-full bg-[#0e141b] border border-[#20303c] focus:border-[#5fd8e6] text-sm p-3 rounded-lg outline-none transition-colors resize-none"
               />
-              <p className="text-[10px] text-zinc-500 mt-1">
-                * Note: Financial networks, identity panels, and checkout forms are blocked by default.
+              <p className="text-[10px] text-[#516b78] mt-1">
+                * Banking, identity, and checkout pages are blocked by default.
               </p>
             </div>
 
             {/* Privacy Mode */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#84a0ad] mb-2">
                 Memory Storage Mode
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -555,26 +616,26 @@ export default function Dashboard() {
                   { id: "strict", label: "Strict Mode", desc: "Filtered Sync" },
                   { id: "local", label: "Local Only", desc: "Zero Cloud" }
                 ].map(mode => (
-                  <button 
+                  <button
                     key={mode.id}
                     type="button"
                     onClick={() => setSignupPrivacy(mode.id)}
                     className={`p-3 rounded-lg border text-left flex flex-col transition-all ${
-                      signupPrivacy === mode.id 
-                        ? 'bg-cyan-950/20 border-cyan-400 text-white' 
-                        : 'bg-[#09090b] border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      signupPrivacy === mode.id
+                        ? 'bg-[#ffb646]/10 border-[#ffb646] text-white'
+                        : 'bg-[#0e141b] border-[#20303c] text-[#84a0ad] hover:border-[#2f4451]'
                     }`}
                   >
                     <span className="text-sm font-bold">{mode.label}</span>
-                    <span className="text-[9px] text-zinc-500 font-medium">{mode.desc}</span>
+                    <span className="text-[9px] text-[#516b78] font-medium">{mode.desc}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <button 
+            <button
               type="submit"
-              className="w-full bg-gradient-to-r from-cyan-400 to-violet-500 hover:from-cyan-500 hover:to-violet-600 text-black font-semibold py-3.5 rounded-lg shadow-lg hover:shadow-cyan-400/10 active:scale-[0.99] transition-all text-sm flex items-center justify-center gap-2"
+              className="w-full bg-[#5fd8e6] hover:bg-[#4bc6d4] text-[#0b1016] font-semibold py-3.5 rounded-lg shadow-lg active:scale-[0.99] transition-all text-sm flex items-center justify-center gap-2"
             >
               Initialize Memory Platform
               <ChevronRight className="w-4 h-4" />
@@ -585,105 +646,104 @@ export default function Dashboard() {
     );
   }
 
-  // --- MAIN DASHBOARD VIEW ---
+  // --- MAIN DASHBOARD VIEW (Control Deck) ---
   return (
-    <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] flex flex-col font-sans">
+    <div
+      className="min-h-screen bg-[#0b1016] text-[#e3edf1] flex flex-col font-sans"
+      style={{
+        backgroundImage:
+          "linear-gradient(rgba(103,214,229,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(103,214,229,0.045) 1px, transparent 1px)",
+        backgroundSize: "32px 32px",
+      }}
+    >
       {/* Top Banner (API Status check) */}
       {!apiOnline && (
-        <div className="bg-red-950/50 border-b border-red-800 text-red-300 p-2.5 text-xs text-center font-medium flex items-center justify-center gap-2">
-          <Info className="w-4 h-4 text-red-400" />
+        <div className="bg-[#ff6b6b]/10 border-b border-[#ff6b6b]/30 text-[#ff6b6b] p-2.5 text-xs text-center font-medium flex items-center justify-center gap-2">
+          <Info className="w-4 h-4" />
           Backend connection error. Make sure Python FastAPI is running at http://localhost:8000
         </div>
       )}
 
       {/* Main Header */}
-      <header className="border-b border-zinc-900 bg-[#0e0f11] py-4 px-8 flex justify-between items-center">
+      <header className="border-b border-[#20303c] bg-[#151f29] py-3.5 px-6 flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-r from-cyan-400 to-violet-500 p-2 rounded-lg">
-            <Shield className="w-5 h-5 text-black" />
+          <div className="relative w-8 h-8 rounded-full border-2 border-[#5fd8e6] flex items-center justify-center flex-shrink-0">
+            <div className="w-3 h-3 rounded-full bg-[#5fd8e6]" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-              Recall AI
-              <span className="text-[10px] bg-zinc-800 text-cyan-400 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
-                Active Memory
-              </span>
+            <h1 className="text-[14.5px] font-bold tracking-tight text-white">
+              Recall
             </h1>
-            <p className="text-[10px] text-zinc-500 mt-0.5">
-              Secure Semantic Memory Layer
+            <p className="text-[10px] text-[#516b78] -mt-0.5">
+              Semantic memory for your browsing
             </p>
           </div>
         </div>
 
-        {/* Global stats indicators */}
-        <div className="flex items-center gap-6 text-xs">
-          <div className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-zinc-400 font-medium">Logged:</span>
-            <span className="text-white font-bold">{timeline.length} items</span>
+        <div className="flex items-center gap-3 text-xs">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-mono text-[10.5px] tracking-wide ${
+            isPauseActive ? "text-[#ffb646] bg-[#ffb646]/10" : "text-[#5fe6a0] bg-[#5fe6a0]/10"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${isPauseActive ? "bg-[#ffb646]" : "bg-[#5fe6a0]"}`} />
+            {isPauseActive ? "Paused" : "Capturing"}
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800 px-3 py-1.5 rounded-lg">
-            <Database className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-zinc-400 font-medium">Index Status:</span>
-            <span className="text-white font-bold">FAISS Local</span>
-          </div>
-
-          <button 
+          <button
             onClick={fetchDashboardData}
-            className="bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 p-2 rounded-lg transition-colors"
+            className="bg-[#111820] hover:bg-[#182430] border border-[#20303c] p-2 rounded-lg transition-colors"
             title="Refresh Data"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-zinc-400" />
+            <RefreshCw className="w-3.5 h-3.5 text-[#84a0ad]" />
           </button>
         </div>
       </header>
 
       {/* Workspace Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Nav */}
-        <nav className="w-64 border-r border-zinc-900 bg-[#0e0f11] p-6 flex flex-col justify-between">
+        {/* Rail Nav — icon + label + one-line description of what each tab does */}
+        <nav className="w-[220px] border-r border-[#20303c] bg-[#0e141b] p-3 flex flex-col justify-between flex-shrink-0">
           <div className="space-y-1">
-            <div className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 mb-3 px-3">
-              Memory Hub
-            </div>
-            
-            {[
-              { id: "timeline", label: "Memory Log", icon: Activity },
-              { id: "threads", label: "Research Threads", icon: Database },
-              { id: "chat", label: "Agentic Search", icon: MessageSquare },
-              { id: "privacy", label: "Privacy Governance", icon: Settings }
-            ].map(tab => {
+            {NAV_ITEMS.map(tab => {
               const Icon = tab.icon;
+              const active = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                    activeTab === tab.id 
-                      ? 'bg-zinc-800 text-white border border-zinc-700/50 shadow-md' 
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-900/40'
+                  className={`w-full flex items-start gap-3 px-2.5 py-2.5 rounded-lg text-left transition-all ${
+                    active ? "bg-[#5fd8e6]/10" : "hover:bg-[#111820]"
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-cyan-400' : 'text-zinc-500'}`} />
-                  {tab.label}
+                  <span className={`w-7 h-7 rounded-md border flex items-center justify-center flex-shrink-0 ${
+                    active ? "border-[#5fd8e6] text-[#5fd8e6]" : "border-[#20303c] text-[#84a0ad] bg-[#111820]"
+                  }`}>
+                    <Icon className="w-3.5 h-3.5" />
+                  </span>
+                  <span>
+                    <div className={`text-[12.5px] font-semibold leading-tight ${active ? "text-[#5fd8e6]" : "text-[#e3edf1]"}`}>
+                      {tab.label}
+                    </div>
+                    <div className="text-[10px] text-[#516b78] leading-tight mt-0.5">
+                      {tab.desc}
+                    </div>
+                  </span>
                 </button>
               );
             })}
           </div>
 
           {/* User badge */}
-          <div className="border-t border-zinc-800 pt-4 mt-6">
-            <div className="bg-[#18181b] border border-zinc-800/60 p-3.5 rounded-lg flex flex-col">
-              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Active User Profile</span>
+          <div className="border-t border-[#20303c] pt-3 mt-4">
+            <div className="bg-[#111820] border border-[#20303c] p-3 rounded-lg flex flex-col">
+              <span className="text-[9.5px] text-[#516b78] font-bold uppercase tracking-wider">Signed in as</span>
               <span className="text-xs text-white font-medium truncate mt-1" title={email}>{email || "default-user"}</span>
-              <button 
+              <button
                 onClick={() => {
                   localStorage.removeItem("recall_user_id");
                   setUserId(null);
                   setIsOnboarding(true);
                 }}
-                className="text-[9px] text-red-400 hover:text-red-300 font-semibold text-left mt-2 underline"
+                className="text-[9px] text-[#ff6b6b] hover:text-[#ff8b8b] font-semibold text-left mt-2 underline"
               >
                 Log out / Reset Profile
               </button>
@@ -692,203 +752,197 @@ export default function Dashboard() {
         </nav>
 
         {/* Content Pane */}
-        <main className="flex-1 overflow-y-auto p-8 bg-[#09090b]">
-          
-          {/* TAB 1: TIMELINE */}
+        <main
+          className="flex-1 overflow-y-auto p-7 md:p-10"
+          style={{
+            backgroundColor: "#0b1016",
+            backgroundImage:
+              "linear-gradient(rgba(103,214,229,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(103,214,229,0.045) 1px, transparent 1px)",
+            backgroundSize: "32px 32px",
+          }}
+        >
+        <div className="max-w-6xl mx-auto">
+
+          {/* TAB 1: TIMELINE / MEMORY LOG */}
           {activeTab === "timeline" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    Digital Memory Log
-                  </h2>
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Real-time timeline capturing and parsing user browsing events.
-                  </p>
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-[19px] font-bold text-white">Memory Log</h2>
+                <p className="text-[12.5px] text-[#84a0ad] mt-1 max-w-[52ch] leading-relaxed">
+                  Every page Recall captured, parsed, and made searchable — most recent first.
+                </p>
+              </div>
+
+              {/* Stat row: surfaces status before the detail */}
+              <div className="flex gap-2.5">
+                <div className="flex-1 border border-[#20303c] bg-[#151f29] rounded-lg px-3.5 py-3">
+                  <div className="font-mono text-[19px] font-bold tabular-nums">{timeline.length}</div>
+                  <div className="text-[10.5px] text-[#84a0ad] mt-0.5">pages captured</div>
+                </div>
+                <div className="flex-1 border border-[#20303c] bg-[#151f29] rounded-lg px-3.5 py-3">
+                  <div className="font-mono text-[19px] font-bold tabular-nums text-[#5fe6a0]">{processedCount}</div>
+                  <div className="text-[10.5px] text-[#84a0ad] mt-0.5">fully processed</div>
+                </div>
+                <div className="flex-1 border border-[#20303c] bg-[#151f29] rounded-lg px-3.5 py-3">
+                  <div className="font-mono text-[19px] font-bold tabular-nums text-[#ffb646]">{waitingCount}</div>
+                  <div className="text-[10.5px] text-[#84a0ad] mt-0.5">waiting to process</div>
                 </div>
               </div>
 
               {timeline.length === 0 ? (
-                <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-12 text-center text-zinc-400">
-                  <Clock className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+                <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-12 text-center text-[#84a0ad]">
+                  <Clock className="w-12 h-12 text-[#2f4451] mx-auto mb-4" />
                   <p className="font-medium text-white mb-2">No Memories Captured Yet</p>
-                  <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                    Use the **Extension Simulator** tab to navigate pages or run background traffic, and your structured memories will show up here.
+                  <p className="text-xs text-[#516b78] max-w-sm mx-auto">
+                    Browse normally with the extension installed — captured pages will show up here automatically.
                   </p>
                 </div>
               ) : (
-                <div className="relative border-l border-zinc-800 ml-4 pl-8 space-y-8">
-                  {timeline.map((event) => (
-                    <div key={event.id} className="relative">
-                      {/* Timeline dot */}
-                      <span className="absolute -left-[41px] top-1 bg-[#18181b] border border-zinc-700 p-1.5 rounded-full z-10 flex items-center justify-center">
-                        {getSourceIcon(event.source_type)}
-                      </span>
+                <>
+                  {/* Legend explains what the status colors mean, up front */}
+                  <div className="flex gap-5 flex-wrap items-center px-3.5 py-2.5 border border-[#1a2530] bg-[#0e141b] rounded-lg text-[11px] text-[#84a0ad]">
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#5fe6a0]" /><b className="text-[#e3edf1]">Processed</b> — read and searchable in Ask Recall</span>
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#ffb646]" /><b className="text-[#e3edf1]">Waiting</b> — captured, not yet parsed</span>
+                  </div>
 
-                      <div className="bg-[#121214] border border-zinc-850 rounded-lg p-5 hover:border-zinc-700 transition-colors">
-                        <div className="flex flex-wrap justify-between items-start gap-4 mb-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-white text-sm truncate flex items-center gap-2">
-                              {event.title}
-                              <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">
-                                ({event.source_type})
+                  <div className="space-y-3">
+                    {timeline.map((event) => {
+                      const isDone = event.status === "extracted";
+                      const score = event.engagement_score || 0;
+                      return (
+                        <div key={event.id} className="border border-[#20303c] bg-[#151f29] rounded-xl p-4 grid grid-cols-[auto_1fr_auto] gap-4 items-start hover:border-[#2f4451] transition-colors">
+                          <div className="w-9 h-9 rounded-lg border border-[#20303c] bg-[#0e141b] flex items-center justify-center flex-shrink-0">
+                            {getSourceIcon(event.source_type)}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-white text-[13.5px] truncate">{event.title}</span>
+                              <span className="font-mono text-[9.5px] uppercase tracking-wide text-[#84a0ad] border border-[#20303c] rounded px-1.5 py-0.5">
+                                {sourceLabel(event.source_type)}
                               </span>
-                            </h3>
-                            <a 
-                              href={event.url} 
-                              target="_blank" 
+                            </div>
+                            <a
+                              href={event.url}
+                              target="_blank"
                               rel="noreferrer"
-                              className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 mt-1 truncate"
+                              className="font-mono text-[10.5px] text-[#4a99a4] hover:text-[#5fd8e6] flex items-center gap-1 mt-1 truncate"
                             >
                               {event.url}
-                              <ExternalLink className="w-3 h-3" />
+                              <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
                             </a>
+
+                            {isDone && event.content_preview ? (
+                              <div className="mt-2.5 pl-2.5 border-l-2 border-[#1a2530] text-[11.5px] text-[#84a0ad] leading-relaxed">
+                                {event.content_preview}
+                              </div>
+                            ) : event.status === "failed" ? (
+                              <div className="mt-2.5 flex items-center justify-between bg-[#ff6b6b]/5 border border-dashed border-[#ff6b6b]/30 p-2.5 rounded-md">
+                                <span className="text-[11px] text-[#ff8b8b]/90 italic">Couldn't parse this page's content.</span>
+                                <button
+                                  onClick={() => handleForceExtract(event.id)}
+                                  className="text-[10px] font-bold bg-[#0e141b] hover:bg-[#182430] text-white px-2.5 py-1 rounded-md border border-[#20303c]"
+                                >
+                                  Retry
+                                </button>
+                              </div>
+                            ) : event.status !== "ignored" ? (
+                              <div className="mt-2.5 flex items-center justify-between bg-[#0e141b] border border-dashed border-[#20303c] p-2.5 rounded-md">
+                                <span className="text-[11px] text-[#516b78] italic">Captured, not processed yet.</span>
+                                <button
+                                  onClick={() => handleForceExtract(event.id)}
+                                  className="text-[10px] font-bold bg-[#0e141b] hover:bg-[#182430] text-white px-2.5 py-1 rounded-md border border-[#20303c]"
+                                >
+                                  Process now
+                                </button>
+                              </div>
+                            ) : null}
+
+                            <div className="flex gap-4 mt-2.5 text-[11px] text-[#84a0ad]">
+                              <span>Time on page <b className="text-[#e3edf1] tabular-nums">{event.duration}s</b></span>
+                              <span>Scrolled <b className="text-[#e3edf1] tabular-nums">{event.scroll_depth}%</b></span>
+                            </div>
                           </div>
 
-                          {/* Badge scores */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-400 px-2 py-0.5 rounded-md font-medium">
-                              Time: {event.duration}s
-                            </span>
-                            <span className="text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-400 px-2 py-0.5 rounded-md font-medium">
-                              Scroll: {event.scroll_depth}%
-                            </span>
-                            
-                            {/* Score badge */}
-                            <span className={`text-[10px] px-2.5 py-0.5 rounded-md font-bold ${
-                              event.engagement_score >= 0.4 
-                                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' 
-                                : 'bg-zinc-800 text-zinc-400'
-                            }`}>
-                              Score: {event.engagement_score}
-                            </span>
-
-                            {/* State indicator */}
-                            <span className={`text-[10px] px-2.5 py-0.5 rounded-md font-bold ${
-                              event.status === "extracted"
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : event.status === "failed"
-                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                : event.status === "ignored"
-                                ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                            }`}>
-                              {event.status === "extracted" 
-                                ? "Extracted" 
-                                : event.status === "failed" 
-                                ? "Failed" 
-                                : event.status === "ignored" 
-                                ? "Ignored" 
-                                : "Captured"}
-                            </span>
+                          <div className="text-right min-w-[110px]">
+                            <StatusPill status={event.status} />
+                            <div className="text-[9.5px] text-[#516b78] uppercase tracking-wide mt-2 mb-1">Relevance</div>
+                            <div className="w-full h-[5px] rounded-full bg-[#1a2530] overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${isDone ? "bg-[#5fd8e6]" : "bg-[#ffb646]"}`}
+                                style={{ width: `${Math.min(100, Math.round(score * 100))}%` }}
+                              />
+                            </div>
+                            <div className="font-mono text-[10.5px] text-[#84a0ad] mt-1 tabular-nums">
+                              {relevanceLabel(score)} · {score.toFixed(2)}
+                            </div>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
 
-                        {/* Content preview */}
-                        {event.status === "extracted" && event.content_preview ? (
-                          <div className="mt-3 bg-[#09090b] border border-zinc-850 p-3 rounded-md text-xs text-zinc-400 leading-relaxed">
-                            {event.content_preview}
-                          </div>
-                        ) : event.status === "failed" ? (
-                          <div className="mt-3 flex items-center justify-between bg-rose-950/10 border border-dashed border-rose-900/30 p-3 rounded-md">
-                            <span className="text-xs text-rose-400/80 italic">
-                              Extraction failed: The website content could not be parsed.
-                            </span>
-                            <button
-                              onClick={() => handleForceExtract(event.id)}
-                              className="text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded-md border border-zinc-700"
-                            >
-                              Retry Extract
-                            </button>
-                          </div>
-                        ) : event.status === "ignored" ? (
-                          <div className="mt-3 bg-zinc-950/40 border border-dashed border-zinc-800 p-3 rounded-md text-xs text-zinc-500 italic">
-                            Ignored: This website or domain was skipped.
-                          </div>
-                        ) : (
-                          <div className="mt-3 flex items-center justify-between bg-[#09090b]/50 border border-dashed border-zinc-800 p-3 rounded-md">
-                            <span className="text-xs text-zinc-500 italic">
-                              Initial metadata captured. Awaiting manual deep extraction approval.
-                            </span>
-                            <button
-                              onClick={() => handleForceExtract(event.id)}
-                              className="text-[10px] font-bold bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded-md border border-zinc-700"
-                            >
-                              Force Deep Extract
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="text-[10px] text-zinc-600 mt-2.5 flex items-center justify-between">
-                          <span>Logged: {new Date(event.created_at).toLocaleString()}</span>
-                          <span className="font-semibold">Event ID: {event.id}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                  <div className="flex justify-between text-[11px] text-[#516b78] pt-3 border-t border-[#20303c]">
+                    <span>Showing {timeline.length} of {timeline.length}</span>
+                    <span>New pages appear here automatically</span>
+                  </div>
+                </>
               )}
             </div>
           )}
 
-          {/* TAB 2.5: THREADS */}
+          {/* TAB 2: THREADS */}
           {activeTab === "threads" && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  Research Threads
-                </h2>
-                <p className="text-xs text-zinc-400 mt-1">
-                  Long-term learning and research flows dynamically consolidated across days.
+                <h2 className="text-[19px] font-bold text-white">Threads</h2>
+                <p className="text-[12.5px] text-[#84a0ad] mt-1 max-w-[52ch] leading-relaxed">
+                  Long-running research and learning threads, automatically grouped from related visits across days.
                 </p>
               </div>
 
               {threads.length === 0 ? (
-                <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-12 text-center text-zinc-400">
-                  <Database className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                  <p className="font-medium text-white mb-2">No Research Threads Active</p>
-                  <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                    Start capturing events and updating them into sessions. Threads will automatically cluster based on similar research goals.
+                <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-12 text-center text-[#84a0ad]">
+                  <Database className="w-12 h-12 text-[#2f4451] mx-auto mb-4" />
+                  <p className="font-medium text-white mb-2">No Threads Yet</p>
+                  <p className="text-xs text-[#516b78] max-w-sm mx-auto">
+                    Keep browsing — Recall clusters related sessions into threads once there's enough signal.
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-4">
                   {threads.map((thread) => (
-                    <div key={thread.id} className="bg-[#121214] border border-zinc-850 rounded-xl p-6 space-y-4">
+                    <div key={thread.id} className="bg-[#151f29] border border-[#20303c] rounded-xl p-5 space-y-4">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                            Thread Context
+                          <span className="text-[9.5px] bg-[#5fd8e6]/10 text-[#5fd8e6] px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                            Thread
                           </span>
-                          <span className="text-[10px] text-zinc-500 font-semibold">
-                            Created: {new Date(thread.created_at).toLocaleDateString()}
+                          <span className="text-[10px] text-[#516b78] font-semibold">
+                            Started {new Date(thread.created_at).toLocaleDateString()}
                           </span>
                         </div>
-                        <h3 className="font-bold text-white text-base">
-                          {thread.title}
-                        </h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed">
-                          {thread.summary}
-                        </p>
+                        <h3 className="font-bold text-white text-[15px]">{thread.title}</h3>
+                        <p className="text-[12px] text-[#84a0ad] leading-relaxed">{thread.summary}</p>
                       </div>
 
-                      <div className="border-t border-zinc-850 pt-4 space-y-3">
-                        <div className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 mb-1">
-                          Clustered Browsing Sessions ({thread.sessions?.length || 0})
+                      <div className="border-t border-[#1a2530] pt-4 space-y-3">
+                        <div className="text-[10px] uppercase font-bold tracking-wider text-[#516b78] mb-1">
+                          {thread.sessions?.length || 0} browsing sessions in this thread
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           {thread.sessions?.map(sess => (
-                            <div key={sess.id} className="bg-[#0b0b0d] border border-zinc-850 p-4 rounded-lg space-y-2">
+                            <div key={sess.id} className="bg-[#0e141b] border border-[#1a2530] p-3.5 rounded-lg space-y-2">
                               <div className="flex justify-between items-start">
                                 <div>
                                   <h4 className="text-xs font-bold text-white">{sess.title}</h4>
-                                  <p className="text-[11px] text-zinc-400 mt-1">{sess.summary}</p>
+                                  <p className="text-[11px] text-[#84a0ad] mt-1">{sess.summary}</p>
                                 </div>
-                                <span className="text-[9px] text-zinc-500">
+                                <span className="text-[9px] text-[#516b78] flex-shrink-0 ml-3">
                                   {new Date(sess.started_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                 </span>
                               </div>
-                              
+
                               <div className="flex flex-wrap gap-1.5 pt-1">
                                 {sess.memories?.slice(0, 4).map(m => (
                                   <a
@@ -896,14 +950,14 @@ export default function Dashboard() {
                                     href={m.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-[9px] bg-zinc-900 border border-zinc-850 hover:border-zinc-700 text-zinc-300 px-2 py-1 rounded truncate max-w-[160px] flex items-center gap-1"
+                                    className="text-[9px] bg-[#111820] border border-[#20303c] hover:border-[#2f4451] text-[#c5d6dc] px-2 py-1 rounded truncate max-w-[160px]"
                                     title={m.title}
                                   >
                                     {m.title}
                                   </a>
                                 ))}
                                 {(sess.memories?.length || 0) > 4 && (
-                                  <span className="text-[9px] text-zinc-500 py-1 px-1">
+                                  <span className="text-[9px] text-[#516b78] py-1 px-1">
                                     +{sess.memories.length - 4} more
                                   </span>
                                 )}
@@ -919,98 +973,81 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* TAB 3: AGENT CHAT */}
+          {/* TAB 3: ASK RECALL / AGENT CHAT */}
           {activeTab === "chat" && (
-            <div className="space-y-6 max-w-4xl">
+            <div className="space-y-5 max-w-3xl mx-auto">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  Agentic Memory Retrieval
-                </h2>
-                <p className="text-xs text-zinc-400 mt-1">
-                  Query your history using structured multi-agent synthesis.
+                <h2 className="text-[19px] font-bold text-white">Ask Recall</h2>
+                <p className="text-[12.5px] text-[#84a0ad] mt-1 max-w-[52ch] leading-relaxed">
+                  Ask a question in plain language. Recall's agents search, rank, and cite your own browsing history to answer.
                 </p>
               </div>
 
-              {/* Chat Input */}
-              <form onSubmit={handleAgentChat} className="bg-[#121214] border border-zinc-850 p-4 rounded-xl flex gap-3 shadow-lg">
-                <input 
+              <form onSubmit={handleAgentChat} className="bg-[#151f29] border border-[#20303c] p-3.5 rounded-xl flex gap-3 shadow-lg">
+                <input
                   type="text"
                   required
                   value={queryText}
                   onChange={e => setQueryText(e.target.value)}
                   placeholder="e.g. What did I read about recall metrics?"
-                  className="flex-1 bg-[#09090b] border border-zinc-850 focus:border-cyan-400 rounded-lg p-3 outline-none text-sm text-white"
+                  className="flex-1 bg-[#0e141b] border border-[#20303c] focus:border-[#5fd8e6] rounded-lg p-3 outline-none text-sm text-white"
                 />
                 <button
                   type="submit"
                   disabled={chatLoading}
-                  className="bg-cyan-400 hover:bg-cyan-500 text-black font-semibold text-xs px-5 py-3 rounded-lg flex items-center gap-2 active:scale-[0.98] disabled:opacity-50"
+                  className="bg-[#5fd8e6] hover:bg-[#4bc6d4] text-[#0b1016] font-semibold text-xs px-5 py-3 rounded-lg flex items-center gap-2 active:scale-[0.98] disabled:opacity-50"
                 >
-                  <Search className="w-4 h-4 text-black" />
-                  {chatLoading ? "Querying..." : "Retrieve"}
+                  <Search className="w-4 h-4" />
+                  {chatLoading ? "Searching..." : "Ask"}
                 </button>
               </form>
 
-              {/* Chat Output Frame */}
               {(chatLoading || queryResponse || agentLogs.length > 0) && (
                 <div className="space-y-4">
-                  {/* Execution Logs widget */}
-                  <div className="bg-[#121214] border border-zinc-850 rounded-xl p-5">
-                    <h3 className="text-xs uppercase font-bold tracking-wider text-zinc-500 mb-3 flex items-center gap-2">
-                      <Sliders className="w-3.5 h-3.5 text-zinc-500" />
-                      Agent Execution Steps
+                  <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-5">
+                    <h3 className="text-[10.5px] uppercase font-bold tracking-wider text-[#516b78] mb-1 flex items-center gap-2">
+                      <Sliders className="w-3.5 h-3.5" />
+                      How Recall found this answer
                     </h3>
+                    <p className="text-[10.5px] text-[#516b78] mb-3">Each agent hands off to the next — planning the search, retrieving matches, then ranking and summarizing them.</p>
                     <div className="space-y-2.5">
                       {agentLogs.map((log, index) => (
                         <div key={index} className="flex gap-3 text-xs leading-relaxed">
-                          <span className="font-bold text-cyan-400 min-w-[110px]">{log.agent}:</span>
-                          <span className="text-zinc-400">{log.action}</span>
+                          <span className="font-bold text-[#5fd8e6] min-w-[110px] font-mono text-[10.5px]">{log.agent}</span>
+                          <span className="text-[#84a0ad]">{log.action}</span>
                         </div>
                       ))}
                       {chatLoading && agentLogs.length === 0 && (
-                        <div className="text-xs text-zinc-500 italic animate-pulse">
-                          Planner is decomposing search queries...
+                        <div className="text-xs text-[#516b78] italic animate-pulse">
+                          Planner is decomposing your question...
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Summary Response Card */}
                   {queryResponse && (
-                    <div className="bg-gradient-to-br from-[#121214] to-[#1a1a1f] border border-zinc-800 rounded-xl p-6 shadow-xl relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-3">
-                        <Sparkles className="w-5 h-5 text-violet-400/20" />
-                      </div>
-
-                      <h3 className="text-xs uppercase font-bold tracking-wider text-cyan-400 mb-3">
-                        Synthesized Answer
+                    <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-6 shadow-xl relative">
+                      <h3 className="text-[10.5px] uppercase font-bold tracking-wider text-[#5fd8e6] mb-3">
+                        Answer
                       </h3>
-                      <p className="text-sm text-zinc-200 leading-relaxed">
-                        {queryResponse}
-                      </p>
+                      <p className="text-sm text-[#e3edf1] leading-relaxed">{queryResponse}</p>
 
-                      {/* Citation block */}
                       {citation && (
-                        <div className="mt-5 border-t border-zinc-800/80 pt-4">
-                          <div className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 mb-2">
-                            Source Citation
+                        <div className="mt-5 border-t border-[#1a2530] pt-4">
+                          <div className="text-[10px] uppercase font-bold tracking-wider text-[#516b78] mb-2">
+                            Where this came from
                           </div>
-                          <div className="bg-[#09090b] border border-zinc-850 p-4 rounded-lg space-y-2">
-                            <p className="text-xs italic text-zinc-400 leading-relaxed">
-                              "{citation.quote}"
-                            </p>
-                            <div className="flex justify-between items-center text-[10px] text-zinc-500 pt-2 border-t border-zinc-900">
-                              <span className="font-bold text-white">
-                                {citation.source} ({citation.location})
-                              </span>
-                              <a 
-                                href={citation.url} 
-                                target="_blank" 
+                          <div className="bg-[#0e141b] border border-[#1a2530] p-4 rounded-lg space-y-2">
+                            <p className="text-xs italic text-[#84a0ad] leading-relaxed">"{citation.quote}"</p>
+                            <div className="flex justify-between items-center text-[10px] text-[#516b78] pt-2 border-t border-[#1a2530]">
+                              <span className="font-bold text-white">{citation.source} ({citation.location})</span>
+                              <a
+                                href={citation.url}
+                                target="_blank"
                                 rel="noreferrer"
-                                className="text-cyan-400 hover:underline flex items-center gap-1 font-semibold"
+                                className="text-[#5fd8e6] hover:underline flex items-center gap-1 font-semibold"
                               >
-                                View Source URL
-                                <ExternalLink className="w-2.5 h-2.5" />
+                                View source <ExternalLink className="w-2.5 h-2.5" />
                               </a>
                             </div>
                           </div>
@@ -1023,280 +1060,235 @@ export default function Dashboard() {
             </div>
           )}
 
-
-
-          {/* TAB 5: PRIVACY GOVERNANCE */}
+          {/* TAB 4: PRIVACY */}
           {activeTab === "privacy" && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Category Controls & Storage Mode */}
-              <div className="space-y-6 lg:col-span-2">
-                {/* Allowed Categories toggles */}
-                <div className="bg-[#121214] border border-zinc-850 rounded-xl p-6">
-                  <h3 className="text-base font-bold text-white mb-2">
-                    Allowed Media Categories
-                  </h3>
-                  <p className="text-xs text-zinc-400 mb-6">
-                    Toggle categories to enable or disable automatic memory tracking.
-                  </p>
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-[19px] font-bold text-white">Privacy</h2>
+                <p className="text-[12.5px] text-[#84a0ad] mt-1 max-w-[56ch] leading-relaxed">
+                  Control exactly what Recall is allowed to see, pause capture any time, or erase everything it has stored.
+                </p>
+              </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      { id: "articles", label: "Articles & General Web", icon: Compass },
-                      { id: "youtube", label: "YouTube Transcripts", icon: Video },
-                      { id: "github", label: "GitHub Code Readmes", icon: GithubIcon },
-                      { id: "pdf", label: "Local PDF Documents", icon: FileText }
-                    ].map(cat => {
-                      const Icon = cat.icon;
-                      const isAllowed = categories[cat.id] || false;
-                      return (
-                        <div 
-                          key={cat.id}
-                          onClick={() => handleToggleCategory(cat.id)}
-                          className={`p-4 rounded-xl border flex items-center justify-between cursor-pointer select-none transition-all ${
-                            isAllowed 
-                              ? 'bg-violet-950/10 border-violet-500/40 hover:border-violet-500' 
-                              : 'bg-zinc-900 border-zinc-850 text-zinc-500 hover:border-zinc-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Icon className={`w-5 h-5 ${isAllowed ? 'text-violet-400' : 'text-zinc-600'}`} />
-                            <div>
-                              <div className={`text-sm font-bold ${isAllowed ? 'text-white' : 'text-zinc-400'}`}>
-                                {cat.label}
-                              </div>
-                              <div className="text-[10px] text-zinc-500 mt-0.5">
-                                {isAllowed ? "Recording Active" : "Blocked/Deny"}
-                              </div>
-                            </div>
-                          </div>
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                            isAllowed ? 'border-violet-400 bg-violet-400/20' : 'border-zinc-700'
-                          }`}>
-                            {isAllowed && <div className="w-1.5 h-1.5 bg-violet-400 rounded-full" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="space-y-5 lg:col-span-2">
+                  {/* Categories */}
+                  <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-6">
+                    <h3 className="text-[14px] font-bold text-white mb-1">What gets saved</h3>
+                    <p className="text-[11.5px] text-[#84a0ad] mb-5">Recall only remembers pages in categories you turn on here.</p>
 
-                {/* Local Storage details */}
-                <div className="bg-[#121214] border border-zinc-850 rounded-xl p-6 space-y-6">
-                  <div>
-                    <h3 className="text-base font-bold text-white mb-2">
-                      Active Privacy Policies
-                    </h3>
-                    <p className="text-xs text-zinc-400">
-                      Define the synchronization rules and storage constraints for your memory platform.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      { id: "balanced", label: "Balanced Sync", desc: "Dual local/cloud storage vector RAG" },
-                      { id: "strict", label: "Strict Mode", desc: "Aggressive keyword filters enabled" },
-                      { id: "local", label: "Local Only", desc: "Zero cloud upload, local SQLite/FAISS only" }
-                    ].map(mode => (
-                      <button
-                        key={mode.id}
-                        onClick={async () => {
-                          try {
-                            const res = await fetch(`${BACKEND_URL}/privacy/preferences`, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                privacy_mode: mode.id,
-                                cloud_sync_enabled: mode.id !== "local",
-                                user_id: userId
-                              })
-                            });
-                            if (res.ok) {
-                              setPrivacyMode(mode.id);
-                            }
-                          } catch (e) {
-                            console.error(e);
-                          }
-                        }}
-                        className={`p-4 rounded-xl border text-left flex flex-col transition-all ${
-                          privacyMode === mode.id 
-                            ? 'bg-cyan-950/15 border-cyan-400 text-white' 
-                            : 'bg-zinc-900 border-zinc-850 text-zinc-400 hover:border-zinc-800'
-                        }`}
-                      >
-                        <span className="text-sm font-bold">{mode.label}</span>
-                        <span className="text-[10px] text-zinc-500 font-semibold mt-1.5">{mode.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Pause Recording timers */}
-                  <div className="border-t border-zinc-850 pt-5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
-                      Ambient Ingestion Control
-                    </h4>
-                    <div className="flex flex-wrap gap-4 items-center">
-                      <div className="flex bg-zinc-900 border border-zinc-850 p-1.5 rounded-lg">
-                        {[10, 60, 180].map(mins => (
-                          <button
-                            key={mins}
-                            onClick={() => setPauseMinutes(mins)}
-                            className={`px-3 py-1.5 text-xs rounded-md font-semibold ${
-                              pauseMinutes === mins ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { id: "articles", label: "Articles & Web", icon: Compass },
+                        { id: "youtube", label: "YouTube Videos", icon: Video },
+                        { id: "github", label: "GitHub Code", icon: GithubIcon },
+                        { id: "pdf", label: "PDF Documents", icon: FileText }
+                      ].map(cat => {
+                        const Icon = cat.icon;
+                        const isAllowed = categories[cat.id] || false;
+                        return (
+                          <div
+                            key={cat.id}
+                            onClick={() => handleToggleCategory(cat.id)}
+                            className={`p-3.5 rounded-lg border flex items-center justify-between cursor-pointer select-none transition-all ${
+                              isAllowed
+                                ? 'bg-[#5fd8e6]/10 border-[#4a99a4] hover:border-[#5fd8e6]'
+                                : 'bg-[#0e141b] border-[#20303c] text-[#516b78] hover:border-[#2f4451]'
                             }`}
                           >
-                            {mins >= 60 ? `${mins/60}h` : `${mins}m`}
-                          </button>
-                        ))}
-                      </div>
+                            <div className="flex items-center gap-3">
+                              <Icon className={`w-[18px] h-[18px] ${isAllowed ? 'text-[#5fd8e6]' : 'text-[#516b78]'}`} />
+                              <div>
+                                <div className={`text-[12.5px] font-bold ${isAllowed ? 'text-white' : 'text-[#84a0ad]'}`}>{cat.label}</div>
+                                <div className="text-[10px] text-[#516b78] mt-0.5">{isAllowed ? "Being saved" : "Not saved"}</div>
+                              </div>
+                            </div>
+                            <div className={`w-7 h-4 rounded-full border relative flex-shrink-0 ${isAllowed ? "border-[#5fd8e6] bg-[#5fd8e6]/20" : "border-[#20303c]"}`}>
+                              <div className={`absolute top-[1px] w-3 h-3 rounded-full transition-all ${isAllowed ? "left-[13px] bg-[#5fd8e6]" : "left-[1px] bg-[#516b78]"}`} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                      <button
-                        onClick={handlePauseCapture}
-                        className={`text-xs font-bold px-4 py-2.5 rounded-lg border ${
-                          isPauseActive 
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
-                            : 'bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700'
-                        }`}
-                      >
-                        {isPauseActive ? "Recording Paused" : "Pause Recording"}
-                      </button>
+                  {/* Storage mode + pause */}
+                  <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-6 space-y-6">
+                    <div>
+                      <h3 className="text-[14px] font-bold text-white mb-1">Storage mode</h3>
+                      <p className="text-[11.5px] text-[#84a0ad]">Decide where your memory data lives and how it syncs.</p>
+                    </div>
 
-                      {isPauseActive && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { id: "balanced", label: "Balanced", desc: "Local + cloud, best search quality" },
+                        { id: "strict", label: "Strict", desc: "Aggressive filtering before anything is saved" },
+                        { id: "local", label: "Local Only", desc: "Nothing ever leaves this device" }
+                      ].map(mode => (
                         <button
+                          key={mode.id}
                           onClick={async () => {
                             try {
-                              const res = await fetch(`${BACKEND_URL}/privacy/pause`, {
+                              const res = await fetch(`${BACKEND_URL}/privacy/preferences`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
-                                  duration_minutes: 0, // Unpause
+                                  privacy_mode: mode.id,
+                                  cloud_sync_enabled: mode.id !== "local",
                                   user_id: userId
                                 })
                               });
-                              if (res.ok) {
-                                setIsPauseActive(false);
-                              }
-                            } catch (e) {
-                              console.error(e);
-                            }
+                              if (res.ok) setPrivacyMode(mode.id);
+                            } catch (e) { console.error(e); }
                           }}
-                          className="text-xs font-semibold text-cyan-400 hover:underline"
+                          className={`p-3.5 rounded-lg border text-left flex flex-col transition-all ${
+                            privacyMode === mode.id
+                              ? 'bg-[#ffb646]/10 border-[#ffb646] text-white'
+                              : 'bg-[#0e141b] border-[#20303c] text-[#84a0ad] hover:border-[#2f4451]'
+                          }`}
                         >
-                          Resume Ingestion
+                          <span className="text-[12.5px] font-bold">{mode.label}</span>
+                          <span className="text-[10px] text-[#516b78] font-medium mt-1 leading-snug">{mode.desc}</span>
                         </button>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-[#1a2530] pt-5">
+                      <h4 className="text-[12.5px] font-bold text-white mb-1">Pause capture</h4>
+                      <p className="text-[11px] text-[#516b78] mb-3">Stop Recall from saving anything for a set time — useful for private browsing.</p>
+                      <div className="flex flex-wrap gap-4 items-center">
+                        <div className="flex bg-[#0e141b] border border-[#20303c] p-1 rounded-lg">
+                          {[10, 60, 180].map(mins => (
+                            <button
+                              key={mins}
+                              onClick={() => setPauseMinutes(mins)}
+                              className={`px-3 py-1.5 text-xs rounded-md font-semibold ${
+                                pauseMinutes === mins ? 'bg-[#ffb646]/15 text-[#ffb646]' : 'text-[#516b78] hover:text-[#84a0ad]'
+                              }`}
+                            >
+                              {mins >= 60 ? `${mins/60}h` : `${mins}m`}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={handlePauseCapture}
+                          className={`text-xs font-bold px-4 py-2.5 rounded-lg border ${
+                            isPauseActive
+                              ? 'bg-[#ffb646]/10 border-[#ffb646]/40 text-[#ffb646]'
+                              : 'bg-[#0e141b] hover:bg-[#182430] text-white border-[#20303c]'
+                          }`}
+                        >
+                          {isPauseActive ? "Capture Paused" : "Pause Capture"}
+                        </button>
+
+                        {isPauseActive && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`${BACKEND_URL}/privacy/pause`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ duration_minutes: 0, user_id: userId })
+                                });
+                                if (res.ok) setIsPauseActive(false);
+                              } catch (e) { console.error(e); }
+                            }}
+                            className="text-xs font-semibold text-[#5fd8e6] hover:underline"
+                          >
+                            Resume now
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Danger zone */}
+                  <div className="bg-[#ff6b6b]/5 border border-[#ff6b6b]/30 rounded-xl p-6">
+                    <h3 className="text-[14px] font-bold text-[#ff6b6b] mb-1">Erase everything</h3>
+                    <p className="text-[11.5px] text-[#ff8b8b]/70 mb-4">Permanently deletes every captured page, session, thread, and vector embedding. This cannot be undone.</p>
+                    <button
+                      onClick={handlePurgeAll}
+                      className="bg-[#ff6b6b]/10 hover:bg-[#ff6b6b]/20 text-[#ff6b6b] border border-[#ff6b6b]/40 font-semibold text-xs px-4 py-2.5 rounded-lg"
+                    >
+                      Purge all memory
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sidebar: blocklist + reflections */}
+                <div className="space-y-5">
+                  <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-5">
+                    <h3 className="text-[13px] font-bold text-white mb-1">Sites never tracked</h3>
+                    <p className="text-[11px] text-[#84a0ad] mb-4">Recall skips any domain on this list, no matter what.</p>
+
+                    <form
+                      onSubmit={e => {
+                        e.preventDefault();
+                        const form = e.target as HTMLFormElement;
+                        const input = form.elements.namedItem("domainInput") as HTMLInputElement;
+                        handleAddBlockedDomain(input.value);
+                        form.reset();
+                      }}
+                      className="flex gap-2 mb-3"
+                    >
+                      <input
+                        name="domainInput"
+                        type="text"
+                        required
+                        placeholder="e.g. reddit.com"
+                        className="flex-1 bg-[#0e141b] border border-[#20303c] focus:border-[#5fd8e6] text-xs p-2.5 rounded-lg outline-none text-white"
+                      />
+                      <button type="submit" className="bg-[#0e141b] hover:bg-[#182430] text-white p-2.5 rounded-lg border border-[#20303c]">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </form>
+
+                    <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                      {blockedDomains.map(b => (
+                        <div key={b.id} className="flex justify-between items-center p-2.5 bg-[#0e141b] border border-[#1a2530] rounded-lg text-xs">
+                          <span className="font-semibold text-[#c5d6dc] truncate max-w-[150px]" title={b.domain}>{b.domain}</span>
+                          <button onClick={() => handleDeleteBlockedDomain(b.id)} className="text-[#516b78] hover:text-[#ff6b6b] transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {blockedDomains.length === 0 && (
+                        <div className="text-[#516b78] text-xs italic text-center py-4">No custom domains blocked.</div>
                       )}
                     </div>
                   </div>
-                </div>
 
-                {/* Permanent purge / Danger zone */}
-                <div className="bg-red-950/10 border border-red-900/40 rounded-xl p-6">
-                  <h3 className="text-base font-bold text-red-400 mb-2">
-                    Danger Zone
-                  </h3>
-                  <p className="text-xs text-red-300/70 mb-5">
-                    Permanently delete history logs, session indices, and vector embeddings.
-                  </p>
-                  <button
-                    onClick={handlePurgeAll}
-                    className="bg-red-900/30 hover:bg-red-900/40 text-red-400 border border-red-800/60 font-semibold text-xs px-4 py-2.5 rounded-lg"
-                  >
-                    Purge All Platform Memories
-                  </button>
-                </div>
-              </div>
+                  <div className="bg-[#151f29] border border-[#20303c] rounded-xl p-5">
+                    <h3 className="text-[13px] font-bold text-white mb-1">What Recall thinks you're learning</h3>
+                    <p className="text-[11px] text-[#84a0ad] mb-4">Topics extracted from your processed pages, with how confident Recall is.</p>
 
-              {/* Blocklist Domains Sidebar & Profile Reflection */}
-              <div className="space-y-6">
-                {/* Blocked Domains manager */}
-                <div className="bg-[#121214] border border-zinc-850 rounded-xl p-6">
-                  <h3 className="text-base font-bold text-white mb-2">
-                    Exclusion Blocklist
-                  </h3>
-                  <p className="text-xs text-zinc-400 mb-4">
-                    Domain wildcards matching exclusion bounds.
-                  </p>
-
-                  {/* Add Domain form */}
-                  <form 
-                    onSubmit={e => {
-                      e.preventDefault();
-                      const form = e.target as HTMLFormElement;
-                      const input = form.elements.namedItem("domainInput") as HTMLInputElement;
-                      handleAddBlockedDomain(input.value);
-                      form.reset();
-                    }}
-                    className="flex gap-2 mb-4"
-                  >
-                    <input 
-                      name="domainInput"
-                      type="text" 
-                      required
-                      placeholder="e.g. reddit.com"
-                      className="flex-1 bg-[#09090b] border border-zinc-850 focus:border-cyan-400 text-xs p-2.5 rounded-lg outline-none text-white"
-                    />
-                    <button 
-                      type="submit"
-                      className="bg-zinc-800 hover:bg-zinc-750 text-white p-2.5 rounded-lg border border-zinc-700"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </form>
-
-                  {/* Blocked domains lists */}
-                  <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                    {blockedDomains.map(b => (
-                      <div key={b.id} className="flex justify-between items-center p-2.5 bg-[#09090b] border border-zinc-850 rounded-lg text-xs">
-                        <span className="font-semibold text-zinc-300 truncate max-w-[150px]" title={b.domain}>
-                          {b.domain}
-                        </span>
-                        <button
-                          onClick={() => handleDeleteBlockedDomain(b.id)}
-                          className="text-zinc-600 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                    {blockedDomains.length === 0 && (
-                      <div className="text-zinc-600 text-xs italic text-center py-4">
-                        No custom domains blocked.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Profile Reflection logs */}
-                <div className="bg-[#121214] border border-zinc-850 rounded-xl p-6">
-                  <h3 className="text-base font-bold text-white mb-2">
-                    Memory Profile Reflection
-                  </h3>
-                  <p className="text-xs text-zinc-400 mb-4">
-                    Extracted learning topics by the Reflection Agent.
-                  </p>
-
-                  <div className="space-y-3.5">
-                    {reflections.map((ref, idx) => (
-                      <div key={idx} className="space-y-1.5 p-3 bg-[#09090b] border border-zinc-850 rounded-lg text-xs">
-                        <div className="flex justify-between items-center font-bold">
-                          <span className="text-white">{ref.topic}</span>
-                          <span className="text-cyan-400">Score: {Math.round(ref.weight * 100)}%</span>
+                    <div className="space-y-3">
+                      {reflections.map((ref, idx) => (
+                        <div key={idx} className="p-3 bg-[#0e141b] border border-[#1a2530] rounded-lg">
+                          <div className="flex justify-between items-center text-xs font-bold mb-1.5">
+                            <span className="text-white">{ref.topic}</span>
+                            <span className="text-[#5fd8e6] font-mono tabular-nums">{Math.round(ref.weight * 100)}%</span>
+                          </div>
+                          <div className="w-full h-[4px] rounded-full bg-[#1a2530] overflow-hidden mb-2">
+                            <div className="h-full rounded-full bg-[#5fd8e6]" style={{ width: `${Math.round(ref.weight * 100)}%` }} />
+                          </div>
+                          <p className="text-[10.5px] text-[#84a0ad] leading-relaxed">{ref.rationale}</p>
                         </div>
-                        <p className="text-zinc-500 leading-relaxed">
-                          {ref.rationale}
-                        </p>
-                      </div>
-                    ))}
-                    {reflections.length === 0 && (
-                      <div className="text-zinc-600 text-xs italic text-center py-4">
-                        Perform deep text extractions first to allow interest reflections.
-                      </div>
-                    )}
+                      ))}
+                      {reflections.length === 0 && (
+                        <div className="text-[#516b78] text-xs italic text-center py-4">
+                          Process some pages first to see interest reflections here.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
+        </div>
         </main>
       </div>
     </div>

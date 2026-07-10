@@ -1,46 +1,63 @@
 const BACKEND_URL = "http://localhost:8000";
+const DASHBOARD_URL = "http://localhost:3000";
+
 let activeTab = null;
 let activeDomain = "";
 let isCurrentDomainBlocked = false;
 let blockId = null;
+let selectedPauseMinutes = 10;
 
-// On popup loaded
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1. Get active tab
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs && tabs.length > 0) {
       activeTab = tabs[0];
-      document.getElementById("pageTitle").textContent = activeTab.title || "Unknown Tab";
-      
+      document.getElementById("pageTitle").textContent = activeTab.title || "Unknown tab";
+
       try {
         const urlObj = new URL(activeTab.url);
         activeDomain = urlObj.hostname;
-        document.getElementById("pageDomain").textContent = activeDomain;
-        
-        // Update popup display
+        document.getElementById("pageDomain").textContent = classifySource(activeDomain);
         updatePopupState();
       } catch (e) {
-        document.getElementById("pageTitle").textContent = "Browser Native Tab";
-        document.getElementById("pageDomain").textContent = "Non-capture URL";
+        document.getElementById("pageTitle").textContent = "Browser tab";
+        document.getElementById("pageDomain").textContent = "Not tracked";
         document.getElementById("blockToggleBtn").style.display = "none";
-        setStatus("Blocked", "status-blocked");
+        setStatus("Not tracked", "status-blocked");
       }
     }
   });
 
-  // 2. Setup button listeners
   document.getElementById("blockToggleBtn").addEventListener("click", toggleDomainBlock);
-  document.getElementById("pause10Btn").addEventListener("click", () => pauseCapture(10));
-  document.getElementById("pause30Btn").addEventListener("click", () => pauseCapture(30));
-  document.getElementById("pause60Btn").addEventListener("click", () => pauseCapture(60));
-  document.getElementById("unpauseBtn").addEventListener("click", () => pauseCapture(0));
-  document.getElementById("dashboardBtn").addEventListener("click", () => {
-    chrome.tabs.create({ url: "http://localhost:3000" });
+
+  document.querySelectorAll(".dur-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".dur-btn").forEach(b => b.classList.remove("sel"));
+      btn.classList.add("sel");
+      selectedPauseMinutes = parseInt(btn.dataset.min, 10);
+    });
   });
-  document.getElementById("viewPrefs").addEventListener("click", () => {
-    chrome.tabs.create({ url: "http://localhost:3000/privacy" });
+
+  document.getElementById("haltBtn").addEventListener("click", handleHaltToggle);
+
+  document.querySelectorAll(".tg-item").forEach(item => {
+    item.addEventListener("click", () => toggleCategory(item.dataset.cat, item));
+  });
+
+  document.getElementById("dashboardBtn").addEventListener("click", () => {
+    chrome.tabs.create({ url: DASHBOARD_URL });
+  });
+  document.getElementById("viewPrefs").addEventListener("click", (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: `${DASHBOARD_URL}#privacy` });
   });
 });
+
+function classifySource(domain) {
+  if (domain.includes("youtube.com")) return "YouTube";
+  if (domain.includes("github.com")) return "GitHub";
+  if (domain.includes("stackoverflow.com")) return "Stack Overflow";
+  return "Article";
+}
 
 function setStatus(text, className) {
   const badge = document.getElementById("statusBadge");
@@ -48,46 +65,51 @@ function setStatus(text, className) {
   document.getElementById("statusText").textContent = text;
 }
 
+let isPausedGlobal = false;
+
 async function updatePopupState() {
   if (!activeDomain) return;
-  
+
   try {
-    // Fetch state from background worker
     chrome.runtime.sendMessage({ type: "GET_POPUP_STATE" }, async (response) => {
       if (!response) return;
-      
+
       const config = response.config;
-      
-      // Check pause state
-      if (!config.capture_enabled) {
+      renderCategories(config.allowed_categories || {});
+
+      const blockedList = config.blocked_domains || [];
+      document.getElementById("blockedCount").textContent =
+        `${blockedList.length} site${blockedList.length === 1 ? "" : "s"} always excluded`;
+
+      isPausedGlobal = !config.capture_enabled;
+      updateHaltButton();
+
+      if (isPausedGlobal) {
         setStatus("Paused", "status-paused");
         document.getElementById("blockToggleBtn").disabled = true;
-        document.getElementById("unpauseBtn").style.display = "block";
         return;
-      } else {
-        document.getElementById("blockToggleBtn").disabled = false;
-        document.getElementById("unpauseBtn").style.display = "none";
       }
-      
-      // Fetch user's custom blocked list to match active domain ID
+      document.getElementById("blockToggleBtn").disabled = false;
+
+      // Fetch full blocked-domain records to resolve the id for this exact domain
       const blockedRes = await fetch(`${BACKEND_URL}/privacy/blocked-domains`);
-      const blockedList = await blockedRes.json();
-      
-      const matchedBlock = blockedList.find(b => 
+      const blockedFull = await blockedRes.json();
+
+      const matchedBlock = blockedFull.find(b =>
         activeDomain === b.domain || activeDomain.endsWith("." + b.domain)
       );
-      
+
       if (matchedBlock) {
         isCurrentDomainBlocked = true;
         blockId = matchedBlock.id;
-        document.getElementById("blockToggleBtn").textContent = "Unblock Domain";
-        document.getElementById("blockToggleBtn").className = "btn btn-danger";
+        document.getElementById("blockToggleBtn").textContent = "Unblock this site";
+        document.getElementById("blockToggleBtn").classList.add("is-blocked");
         setStatus("Blocked", "status-blocked");
       } else {
         isCurrentDomainBlocked = false;
         blockId = null;
-        document.getElementById("blockToggleBtn").textContent = "Block Domain";
-        document.getElementById("blockToggleBtn").className = "btn btn-secondary";
+        document.getElementById("blockToggleBtn").textContent = "Block this site";
+        document.getElementById("blockToggleBtn").classList.remove("is-blocked");
         setStatus("Active", "status-active");
       }
     });
@@ -96,38 +118,58 @@ async function updatePopupState() {
   }
 }
 
+function renderCategories(allowedCategories) {
+  document.querySelectorAll(".tg-item").forEach(item => {
+    const cat = item.dataset.cat;
+    const enabled = !!allowedCategories[cat];
+    item.classList.toggle("on", enabled);
+  });
+}
+
+function updateHaltButton() {
+  const btn = document.getElementById("haltBtn");
+  btn.classList.toggle("is-paused", isPausedGlobal);
+  btn.textContent = isPausedGlobal ? "Resume capture" : "Pause capture";
+}
+
+async function toggleCategory(category, itemEl) {
+  const willEnable = !itemEl.classList.contains("on");
+  try {
+    const res = await fetch(`${BACKEND_URL}/privacy/category-toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, enabled: willEnable })
+    });
+    if (res.ok) {
+      itemEl.classList.toggle("on", willEnable);
+      chrome.runtime.sendMessage({ type: "REFRESH_CONFIG" });
+    }
+  } catch (e) {
+    console.error("Popup: Failed to toggle category", e);
+  }
+}
+
 async function toggleDomainBlock() {
   if (!activeDomain) return;
-  
+
   if (isCurrentDomainBlocked && blockId) {
-    // Unblock
     try {
-      const res = await fetch(`${BACKEND_URL}/privacy/blocked-domains/${blockId}`, {
-        method: "DELETE"
-      });
+      const res = await fetch(`${BACKEND_URL}/privacy/blocked-domains/${blockId}`, { method: "DELETE" });
       if (res.ok) {
-        chrome.runtime.sendMessage({ type: "REFRESH_CONFIG" }, () => {
-          updatePopupState();
-        });
+        chrome.runtime.sendMessage({ type: "REFRESH_CONFIG" }, () => updatePopupState());
       }
     } catch (e) {
       console.error("Popup: Failed to delete blocked domain", e);
     }
   } else {
-    // Block
     try {
       const res = await fetch(`${BACKEND_URL}/privacy/blocked-domains`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          domain: activeDomain,
-          wildcard: true
-        })
+        body: JSON.stringify({ domain: activeDomain, wildcard: true })
       });
       if (res.ok) {
-        chrome.runtime.sendMessage({ type: "REFRESH_CONFIG" }, () => {
-          updatePopupState();
-        });
+        chrome.runtime.sendMessage({ type: "REFRESH_CONFIG" }, () => updatePopupState());
       }
     } catch (e) {
       console.error("Popup: Failed to create blocked domain", e);
@@ -135,19 +177,19 @@ async function toggleDomainBlock() {
   }
 }
 
+function handleHaltToggle() {
+  pauseCapture(isPausedGlobal ? 0 : selectedPauseMinutes);
+}
+
 async function pauseCapture(minutes) {
   try {
     const res = await fetch(`${BACKEND_URL}/privacy/pause`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        duration_minutes: minutes
-      })
+      body: JSON.stringify({ duration_minutes: minutes })
     });
     if (res.ok) {
-      chrome.runtime.sendMessage({ type: "REFRESH_CONFIG" }, () => {
-        updatePopupState();
-      });
+      chrome.runtime.sendMessage({ type: "REFRESH_CONFIG" }, () => updatePopupState());
     }
   } catch (e) {
     console.error("Popup: Failed to pause capture", e);

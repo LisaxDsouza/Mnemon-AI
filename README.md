@@ -66,22 +66,40 @@ Recall AI treats privacy as a core engineering feature:
 Ensure you have created a `.env` file in the root directory:
 ```env
 GROQ_API_KEY=your_groq_key
-HUGGINGFACE_API_KEY=your_huggingface_key
 DATABASE_URL=sqlite:///./backend/recall_ai.db
 UPLOAD_DIR=./backend/uploads
 FAISS_INDEX_PATH=./backend/vector_db
 ```
 
-Install python dependencies and start the backend:
+Create the virtual environment, install python dependencies, and start the backend from the **project root directory** (running from the root ensures SQLite/FAISS paths resolve correctly):
+
+**On Windows (PowerShell):**
+```powershell
+# Create the virtual environment inside backend/venv
+python -m venv backend/venv
+
+# Install dependencies
+.\backend\venv\Scripts\pip install -r requirements.txt
+
+# Run the backend
+.\backend\venv\Scripts\python backend/main.py
+```
+
+**On macOS/Linux:**
 ```bash
-# In the root directory:
-.\.venv\Scripts\pip install -r requirements.txt
-python backend/main.py
+# Create the virtual environment inside backend/venv
+python3 -m venv backend/venv
+
+# Install dependencies
+./backend/venv/bin/pip install -r requirements.txt
+
+# Run the backend
+./backend/venv/bin/python backend/main.py
 ```
 
 ### 2. Next.js Dashboard
 
-Install node modules and launch the development dashboard server:
+Navigate to the frontend folder, install node modules, and launch the development dashboard server:
 ```bash
 cd frontend
 npm install
